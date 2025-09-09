@@ -1,4 +1,6 @@
-# doc: https://github.com/redhat-plumbers-in-action/devel-freezer#readme
+# <-- Do NOT enforce til reviewed -->
+
+# doc: https://github.com/redhat-plumbers-in-action/devel-freezer#readme2
 ---
 
 name: Development Freeze
