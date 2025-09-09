@@ -1,0 +1,66 @@
+# Consolidated rootfs manifest (minimal, front-end friendly)
+# Fields:
+# - id: stable identifier used by UI
+# - name: user-facing name
+# - preferred_arch: a hint for the UI to prefer this arch
+# - urls: per-arch concrete download URL or templated URL
+# - accept: accepted file extensions (used to validate imports)
+# - note: brief guidance for the UI/admin
+manifests:
+  - id: archlinux-arm
+    name: "Arch Linux ARM (aarch64)"
+    preferred_arch: "aarch64"
+    urls:
+      aarch64: "http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz"
+    accept:
+      - ".tar.gz"
+    note: "Single-file official Arch Linux ARM rootfs. No repack required. Use browser download -> Import if in-app downloader fails."
+
+  - id: alpine-minirootfs
+    name: "Alpine Minirootfs (aarch64)"
+    preferred_arch: "aarch64"
+    urls:
+      aarch64_template: "https://dl-cdn.alpinelinux.org/alpine/latest-stable/releases/aarch64/alpine-minirootfs-{{version}}-aarch64.tar.gz"
+    accept:
+      - ".tar.gz"
+    note: "Tiny and fast. UI should discover the exact file name (list page) or present an input for version."
+
+  - id: debian-cpa-release-v7.7.9
+    name: "Debian Assets (CypherpunkArmory v7.7.9)"
+    preferred_arch: "arm64"
+    urls:
+      arm64: "https://github.com/CypherpunkArmory/UserLAnd-Assets-Debian/releases/download/v7.7.9/arm64-rootfs.tar.gz"
+      arm:   "https://github.com/CypherpunkArmory/UserLAnd-Assets-Debian/releases/download/v7.7.9/arm-rootfs.tar.gz"
+      x86:   "https://github.com/CypherpunkArmory/UserLAnd-Assets-Debian/releases/download/v7.7.9/x86-rootfs.tar.gz"
+      x86_64:"https://github.com/CypherpunkArmory/UserLAnd-Assets-Debian/releases/download/v7.7.9/x86_64-rootfs.tar.gz"
+    accept:
+      - ".tar.gz"
+    note: "Official Debian release assets used by UserLAnd. Use these first when targeting Debian/Ubuntu workflows."
+
+  - id: gentoo-stage3-openrc
+    name: "Gentoo Stage3 (openrc / llvm)"
+    preferred_arch: "aarch64"
+    urls:
+      discover_hint: "https://bouncer.gentoo.org/fetch/root/all/releases/arm64/autobuilds/"
+      template: "https://bouncer.gentoo.org/fetch/root/all/releases/arm64/autobuilds/current-stage3-arm64-llvm-openrc/stage3-arm64-llvm-openrc-{{timestamp}}.tar.xz"
+    accept:
+      - ".tar.xz"
+    note: "Gentoo autobuilds often use mirrors and .tar.xz. If UI cannot import .tar.xz, offer browser-download + repack to .tar.gz (preserve numeric owners)."
+
+  - id: void-arm
+    name: "Void Linux aarch64 rootfs"
+    preferred_arch: "aarch64"
+    urls:
+      aarch64_template: "https://repo.voidlinux.org/live/current/void-aarch64-ROOTFS-{{date}}.tar.xz"
+    accept:
+      - ".tar.xz"
+    note: "Lean non-systemd option. May require repack to .tar.gz for UserLAnd import."
+
+  - id: gentoo-quick-test
+    name: "Gentoo (bouncer quick-check link)"
+    preferred_arch: "aarch64"
+    urls:
+      aarch64: "https://bouncer.gentoo.org/fetch/root/all/releases/arm64/autobuilds/current-stage3-arm64-llvm-openrc/"
+    accept:
+      - ".tar.xz"
+    note: "UI can follow this directory and copy the exact stage3 filename. Prefer browser download then manual import if downloader errors occur."
