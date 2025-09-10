@@ -1,4 +1,4 @@
-package com.spiralgang.filesystemds
+package com.spiralgang.filesystemds.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
