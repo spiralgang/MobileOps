@@ -59,6 +59,7 @@ Copilot: amplify, accelerate, and align every suggestion, review, and contributi
   - Clear, future-facing documentation (not just "how," but "why/where to evolve")
 
 ### E. Branch, Review, and Document Strategically
+- **STRICT BRANCH POLICY**: NO multiple copilot fix branches allowed. Strictly enforce a one alt branch policy - there must be only the 'main' branch and one other branch maximum at any given time.
 - Propose descriptive, forward-looking branch names (e.g. `agentic-networking`, `modular-policy-engine`).
 - Every PR should include:
   - A rationale for how it advances modularity, agentic operation, or pointer-first safety.
