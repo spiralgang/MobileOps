@@ -1,0 +1,61 @@
+<resources>
+    <string name="app_name">FileSystemds</string>
+    <string name="app_description">Mobile Platform for Advanced System Management</string>
+    
+    <!-- Main Screen -->
+    <string name="platform_status">Platform Status</string>
+    <string name="system_running">System Running</string>
+    <string name="ai_core_active">AI Core Active</string>
+    <string name="container_runtime_ready">Container Runtime Ready</string>
+    <string name="network_configured">Network Configured</string>
+    
+    <!-- Actions -->
+    <string name="run_diagnostics">Run Diagnostics</string>
+    <string name="settings">Settings</string>
+    <string name="start">Start</string>
+    <string name="stop">Stop</string>
+    <string name="restart">Restart</string>
+    
+    <!-- Services -->
+    <string name="ai_core_manager">AI Core Manager</string>
+    <string name="ai_core_description">Intelligent system automation and decision making</string>
+    <string name="platform_launcher">Platform Launcher</string>
+    <string name="platform_launcher_description">Central orchestration and lifecycle management</string>
+    <string name="container_runtime">Container Runtime</string>
+    <string name="container_runtime_description">Chisel containers and QEMU virtual machines</string>
+    <string name="network_manager">Network Manager</string>
+    <string name="network_manager_description">Advanced networking configuration</string>
+    <string name="security_framework">Security Framework</string>
+    <string name="security_framework_description">Integrity monitoring and verification</string>
+    <string name="asset_manager">Asset Manager</string>
+    <string name="asset_manager_description">Resource and asset management</string>
+    
+    <!-- Notifications -->
+    <string name="platform_service_running">FileSystemds Platform Service Running</string>
+    <string name="ai_core_service_running">AI Core Service Active</string>
+    <string name="platform_initialized">Platform Initialized Successfully</string>
+    <string name="diagnostics_running">Running System Diagnostics</string>
+    
+    <!-- Permissions -->
+    <string name="storage_permission_required">Storage permission required for FileSystemds operation</string>
+    <string name="permission_granted">Permission granted</string>
+    <string name="permission_denied">Permission denied</string>
+    
+    <!-- Error Messages -->
+    <string name="initialization_failed">Platform initialization failed</string>
+    <string name="service_start_failed">Failed to start service</string>
+    <string name="network_error">Network configuration error</string>
+    <string name="container_error">Container runtime error</string>
+    
+    <!-- Settings -->
+    <string name="advanced_settings">Advanced Settings</string>
+    <string name="platform_settings">Platform Configuration</string>
+    <string name="ai_settings">AI Core Settings</string>
+    <string name="network_settings">Network Settings</string>
+    <string name="security_settings">Security Settings</string>
+    
+    <!-- About -->
+    <string name="version_info">Version Information</string>
+    <string name="build_info">Build Information</string>
+    <string name="copyright">© 2024 SpiralGang - FileSystemds Mobile Platform</string>
+</resources>

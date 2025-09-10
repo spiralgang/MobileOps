@@ -1,0 +1,30 @@
+# FileSystemds Cross-Compilation Configuration Template
+# This file is used to configure cross-compilation for ARM64/aarch64 targets
+
+[binaries]
+c = 'aarch64-linux-gnu-gcc'
+cpp = 'aarch64-linux-gnu-g++'
+ar = 'aarch64-linux-gnu-ar'
+strip = 'aarch64-linux-gnu-strip'
+objcopy = 'aarch64-linux-gnu-objcopy'
+objdump = 'aarch64-linux-gnu-objdump'
+pkgconfig = 'pkg-config'
+pkg-config = 'pkg-config'
+
+[built-in options]
+c_args = ['-march=armv8-a', '-mtune=cortex-a72']
+cpp_args = ['-march=armv8-a', '-mtune=cortex-a72']
+c_link_args = []
+cpp_link_args = []
+
+[properties]
+# Additional properties for cross-compilation
+needs_exe_wrapper = true
+has_function_printf = true
+has_function_hfkerhisadf = false
+
+[host_machine]
+system = 'linux'
+cpu_family = 'aarch64'
+cpu = 'armv8'
+endian = 'little'
