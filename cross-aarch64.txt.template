@@ -21,8 +21,6 @@ cpp_link_args = []
 # Additional properties for cross-compilation
 needs_exe_wrapper = true
 has_function_printf = true
-has_function_hfkerhisadf = false
-
 [host_machine]
 system = 'linux'
 cpu_family = 'aarch64'
