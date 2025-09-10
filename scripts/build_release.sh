@@ -6,6 +6,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPTS_DIR="$SCRIPT_DIR"
 LOG_FILE="/var/log/mobileops/build_release.log"
 BUILD_CONFIG_DIR="/etc/mobileops/build"
 BUILD_OUTPUT_DIR="/var/lib/mobileops/builds"
@@ -45,7 +46,7 @@ prepare_source() {
     
     # Copy scripts to source directory
     mkdir -p "$SOURCE_DIR/scripts"
-    cp "$SCRIPT_DIR"/*.sh "$SOURCE_DIR/scripts/"
+    cp "$SCRIPTS_DIR"/*.sh "$SOURCE_DIR/scripts/"
     
     # Copy documentation
     if [[ -d "/home/runner/work/FileSystemds/FileSystemds/docs" ]]; then

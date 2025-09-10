@@ -1,0 +1,429 @@
+name: Android APK Build Automation
+
+on:
+  push:
+    branches: [ main, 'copilot/**' ]
+    paths:
+      - 'scripts/**'
+      - 'docs/ANDROID_INTEGRATION.md'
+      - 'android/**'
+      - '.github/workflows/android-apk-build.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'scripts/**'
+      - 'docs/ANDROID_INTEGRATION.md'
+      - 'android/**'
+      - '.github/workflows/android-apk-build.yml'
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type (debug/release)'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
+      notify_completion:
+        description: 'Send notification when complete'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  JAVA_VERSION: '17'
+  ANDROID_API_LEVEL: '34'
+  ANDROID_BUILD_TOOLS_VERSION: '34.0.0'
+  GRADLE_VERSION: '8.4'
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    
+    outputs:
+      apk-path: ${{ steps.build.outputs.apk-path }}
+      apk-name: ${{ steps.build.outputs.apk-name }}
+      build-success: ${{ steps.build.outputs.success }}
+      
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Setup Java JDK
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ env.JAVA_VERSION }}
+        distribution: 'temurin'
+        
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+      with:
+        api-level: ${{ env.ANDROID_API_LEVEL }}
+        build-tools: ${{ env.ANDROID_BUILD_TOOLS_VERSION }}
+        
+    - name: Create Android Project Structure
+      run: |
+        echo "Creating Android project structure..."
+        mkdir -p android/app/src/main/{java/com/spiralgang/filesystemds,res/{layout,values,drawable}}
+        mkdir -p android/app/src/main/assets
+        
+        # Create build.gradle (Project level)
+        cat > android/build.gradle << 'EOF'
+        buildscript {
+            ext.kotlin_version = "1.9.20"
+            dependencies {
+                classpath 'com.android.tools.build:gradle:8.1.2'
+                classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+            }
+        }
+        
+        allprojects {
+            repositories {
+                google()
+                mavenCentral()
+            }
+        }
+        
+        task clean(type: Delete) {
+            delete rootProject.buildDir
+        }
+        EOF
+        
+        # Create build.gradle (App level)
+        cat > android/app/build.gradle << 'EOF'
+        plugins {
+            id 'com.android.application'
+            id 'org.jetbrains.kotlin.android'
+        }
+        
+        android {
+            namespace 'com.spiralgang.filesystemds'
+            compileSdk 34
+            
+            defaultConfig {
+                applicationId "com.spiralgang.filesystemds"
+                minSdk 24
+                targetSdk 34
+                versionCode 1
+                versionName "1.0.0"
+                
+                testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+            }
+            
+            buildTypes {
+                release {
+                    minifyEnabled false
+                    proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+                    signingConfig signingConfigs.debug
+                }
+                debug {
+                    debuggable true
+                    applicationIdSuffix ".debug"
+                }
+            }
+            
+            compileOptions {
+                sourceCompatibility JavaVersion.VERSION_17
+                targetCompatibility JavaVersion.VERSION_17
+            }
+            
+            kotlinOptions {
+                jvmTarget = '17'
+            }
+        }
+        
+        dependencies {
+            implementation 'androidx.core:core-ktx:1.12.0'
+            implementation 'androidx.appcompat:appcompat:1.6.1'
+            implementation 'com.google.android.material:material:1.10.0'
+            implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+            testImplementation 'junit:junit:4.13.2'
+            androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+            androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+        }
+        EOF
+        
+        # Create gradle.properties
+        cat > android/gradle.properties << 'EOF'
+        org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+        android.useAndroidX=true
+        android.enableJetifier=true
+        kotlin.code.style=official
+        android.nonTransitiveRClass=true
+        EOF
+        
+        # Create settings.gradle
+        cat > android/settings.gradle << 'EOF'
+        pluginManagement {
+            repositories {
+                google()
+                mavenCentral()
+                gradlePluginPortal()
+            }
+        }
+        dependencyResolutionManagement {
+            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+            repositories {
+                google()
+                mavenCentral()
+            }
+        }
+        
+        rootProject.name = "FileSystemds"
+        include ':app'
+        EOF
+        
+    - name: Create Android Manifest
+      run: |
+        cat > android/app/src/main/AndroidManifest.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+            xmlns:tools="http://schemas.android.com/tools">
+            
+            <uses-permission android:name="android.permission.INTERNET" />
+            <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+            <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+            <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+            
+            <application
+                android:allowBackup="true"
+                android:dataExtractionRules="@xml/data_extraction_rules"
+                android:fullBackupContent="@xml/backup_rules"
+                android:icon="@mipmap/ic_launcher"
+                android:label="@string/app_name"
+                android:roundIcon="@mipmap/ic_launcher_round"
+                android:supportsRtl="true"
+                android:theme="@style/Theme.FileSystemds"
+                tools:targetApi="31">
+                
+                <activity
+                    android:name=".MainActivity"
+                    android:exported="true">
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN" />
+                        <category android:name="android.intent.category.LAUNCHER" />
+                    </intent-filter>
+                </activity>
+            </application>
+        </manifest>
+        EOF
+        
+    - name: Create Android Source Files
+      run: |
+        # Create MainActivity.kt
+        cat > android/app/src/main/java/com/spiralgang/filesystemds/MainActivity.kt << 'EOF'
+        package com.spiralgang.filesystemds
+        
+        import android.os.Bundle
+        import android.widget.TextView
+        import androidx.appcompat.app.AppCompatActivity
+        
+        class MainActivity : AppCompatActivity() {
+            override fun onCreate(savedInstanceState: Bundle?) {
+                super.onCreate(savedInstanceState)
+                setContentView(R.layout.activity_main)
+                
+                val textView = findViewById<TextView>(R.id.textView)
+                textView.text = "FileSystemds Mobile Platform\nVersion: ${BuildConfig.VERSION_NAME}"
+            }
+        }
+        EOF
+        
+        # Create layout
+        cat > android/app/src/main/res/layout/activity_main.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+            xmlns:app="http://schemas.android.com/tools"
+            xmlns:tools="http://schemas.android.com/tools"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            tools:context=".MainActivity">
+            
+            <TextView
+                android:id="@+id/textView"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="FileSystemds Mobile Platform"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:gravity="center"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+                
+        </androidx.constraintlayout.widget.ConstraintLayout>
+        EOF
+        
+        # Create strings.xml
+        cat > android/app/src/main/res/values/strings.xml << 'EOF'
+        <resources>
+            <string name="app_name">FileSystemds</string>
+        </resources>
+        EOF
+        
+        # Create themes.xml
+        cat > android/app/src/main/res/values/themes.xml << 'EOF'
+        <resources xmlns:tools="http://schemas.android.com/tools">
+            <style name="Theme.FileSystemds" parent="Theme.Material3.DayNight">
+                <item name="colorPrimary">@color/purple_500</item>
+                <item name="colorPrimaryVariant">@color/purple_700</item>
+                <item name="colorOnPrimary">@color/white</item>
+                <item name="colorSecondary">@color/teal_200</item>
+                <item name="colorSecondaryVariant">@color/teal_700</item>
+                <item name="colorOnSecondary">@color/black</item>
+                <item name="colorError">@color/red_600</item>
+                <item name="colorOnError">@color/white</item>
+                <item name="colorSurface">@color/white</item>
+                <item name="colorOnSurface">@color/black</item>
+                <item name="status_bar_color" tools:targetApi="l">?attr/colorPrimaryVariant</item>
+            </style>
+        </resources>
+        EOF
+        
+        # Create colors.xml
+        cat > android/app/src/main/res/values/colors.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <resources>
+            <color name="purple_200">#FFBB86FC</color>
+            <color name="purple_500">#FF6200EE</color>
+            <color name="purple_700">#FF3700B3</color>
+            <color name="teal_200">#FF03DAC5</color>
+            <color name="teal_700">#FF018786</color>
+            <color name="black">#FF000000</color>
+            <color name="white">#FFFFFFFF</color>
+            <color name="red_600">#FFE53E3E</color>
+        </resources>
+        EOF
+        
+        # Copy platform scripts to assets
+        mkdir -p android/app/src/main/assets/scripts
+        cp scripts/*.sh android/app/src/main/assets/scripts/ || echo "No scripts to copy yet"
+        
+    - name: Setup Gradle Wrapper
+      run: |
+        cd android
+        gradle wrapper --gradle-version ${{ env.GRADLE_VERSION }}
+        chmod +x gradlew
+        
+    - name: Cache Gradle Dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+          android/.gradle
+        key: ${{ runner.os }}-gradle-${{ hashFiles('android/**/*.gradle*', 'android/**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+          
+    - name: Build APK
+      id: build
+      run: |
+        cd android
+        
+        BUILD_TYPE="${{ github.event.inputs.build_type || 'debug' }}"
+        
+        echo "Building APK with type: $BUILD_TYPE"
+        
+        if [ "$BUILD_TYPE" = "release" ]; then
+          ./gradlew assembleRelease
+          APK_PATH="app/build/outputs/apk/release/app-release.apk"
+          APK_NAME="filesystemds-mobile-$(date +%Y%m%d-%H%M%S)-release.apk"
+        else
+          ./gradlew assembleDebug
+          APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
+          APK_NAME="filesystemds-mobile-$(date +%Y%m%d-%H%M%S)-debug.apk"
+        fi
+        
+        # Check if APK was built successfully
+        if [ -f "$APK_PATH" ]; then
+          echo "APK built successfully: $APK_PATH"
+          
+          # Rename APK with timestamp
+          mv "$APK_PATH" "app/build/outputs/apk/$APK_NAME"
+          
+          # Set outputs
+          echo "apk-path=android/app/build/outputs/apk/$APK_NAME" >> $GITHUB_OUTPUT
+          echo "apk-name=$APK_NAME" >> $GITHUB_OUTPUT
+          echo "success=true" >> $GITHUB_OUTPUT
+          
+          # Get APK info
+          aapt dump badging "app/build/outputs/apk/$APK_NAME" || echo "Could not get APK info"
+        else
+          echo "APK build failed"
+          echo "success=false" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+        
+    - name: Upload APK Artifact
+      if: steps.build.outputs.success == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ steps.build.outputs.apk-name }}
+        path: ${{ steps.build.outputs.apk-path }}
+        retention-days: 30
+        
+    - name: Create Release APK
+      if: github.event_name == 'release' && steps.build.outputs.success == 'true'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ${{ steps.build.outputs.apk-path }}
+        asset_name: ${{ steps.build.outputs.apk-name }}
+        asset_content_type: application/vnd.android.package-archive
+        
+  notify-completion:
+    runs-on: ubuntu-latest
+    needs: build-apk
+    if: always() && (github.event.inputs.notify_completion == 'true' || github.event.inputs.notify_completion == '')
+    
+    steps:
+    - name: Notify Build Completion
+      run: |
+        if [ "${{ needs.build-apk.outputs.build-success }}" = "true" ]; then
+          echo "✅ APK Build Completed Successfully!"
+          echo "📱 APK Name: ${{ needs.build-apk.outputs.apk-name }}"
+          echo "📁 APK Path: ${{ needs.build-apk.outputs.apk-path }}"
+          echo "🔗 Download URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          
+          # Create issue comment with download link if this is a PR
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "PR detected - APK artifact available in workflow run"
+          fi
+        else
+          echo "❌ APK Build Failed!"
+          echo "📝 Check the build logs for details"
+          exit 1
+        fi
+        
+    - name: Create APK Download Comment
+      if: github.event_name == 'pull_request' && needs.build-apk.outputs.build-success == 'true'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `## 📱 APK Build Completed Successfully!
+            
+            **APK Name:** \`${{ needs.build-apk.outputs.apk-name }}\`
+            
+            **Download Link:** [Download APK Artifact](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            
+            **Build Details:**
+            - Build Type: ${{ github.event.inputs.build_type || 'debug' }}
+            - Commit: ${{ github.sha }}
+            - Branch: ${{ github.ref_name }}
+            
+            The APK has been automatically built and is ready for testing!`
+          })
