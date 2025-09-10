@@ -3,7 +3,7 @@
 
 
 
-### Lagacy README.md》》》》》
+### Legacy README.md
 
 System and Service Manager
 
@@ -18,6 +18,47 @@ System and Service Manager
 [![Coverage Status](https://coveralls.io/repos/github/systemd/systemd/badge.svg?branch=main)](https://coveralls.io/github/systemd/systemd?branch=main)</br>
 [![Packaging status](https://repology.org/badge/tiny-repos/systemd.svg)](https://repology.org/project/systemd/versions)</br>
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/systemd/systemd/badge)](https://securityscorecards.dev/viewer/?platform=github.com&org=systemd&repo=systemd)
+
+## Userland Apps Integration
+
+FileSystemds includes a modern userland-apps toolset that provides secure, robust installation and management of common applications and development environments. This system replaces and modernizes application installation scripts with production-ready implementations.
+
+### Quick Start
+
+```bash
+# Install and launch R statistical computing environment
+./tools/userland-apps/r-lang
+
+# Install Git GUI interface  
+./tools/userland-apps/git-gui
+
+# Install and play Zork text adventure game
+./tools/userland-apps/zork
+```
+
+### Features
+
+- **Security**: Input validation, secure privilege escalation, concurrent execution safety
+- **Reliability**: Idempotent operations, comprehensive error handling, detailed logging
+- **Portability**: OS detection, multi-distribution support, POSIX compliance
+- **Testing**: Comprehensive test suite with security and functionality validation
+
+### Documentation
+
+- Complete usage guide: [docs/userland-apps.md](docs/userland-apps.md)
+- Application metadata: [data/apps.csv](data/apps.csv)
+- Asset inventory: [share/assets/manifest.csv](share/assets/manifest.csv)
+
+### Testing
+
+```bash
+# Run complete userland-apps test suite
+./tests/userland-apps/test-userland-apps.sh
+
+# Test individual tools
+./tools/userland-apps/r-lang --help
+./tools/userland-apps/git-gui --version
+```
 
 ## Details
 

@@ -3180,6 +3180,49 @@ else
         found += 'static-libudev(@0@)'.format(static_libudev)
 endif
 
+############################################################
+# Userland Apps Integration
+
+userland_apps_option = get_option('userland-apps')
+if userland_apps_option != 'false'
+        # Install userland-apps tools
+        userland_apps_tools = files(
+                'tools/userland-apps/r-lang',
+                'tools/userland-apps/git-gui', 
+                'tools/userland-apps/zork',
+                'tools/userland-apps/octave'
+        )
+        
+        install_data(userland_apps_tools,
+                     install_dir : bindir,
+                     install_mode : 'rwxr-xr-x')
+        
+        # Install application metadata
+        install_data('data/apps.csv',
+                     install_dir : datadir / 'userland-apps')
+        
+        # Install assets
+        install_subdir('share/assets',
+                       install_dir : datadir / 'userland-apps',
+                       strip_directory : false)
+        
+        # Install documentation
+        install_data('docs/userland-apps.md',
+                     install_dir : docdir)
+        
+        # Add userland-apps tests
+        if want_tests != 'false'
+                test('userland-apps',
+                     files('tests/userland-apps/test-userland-apps.sh'),
+                     suite : 'userland-apps',
+                     timeout : 60)
+        endif
+        
+        found += 'userland-apps'
+else
+        missing += 'userland-apps'
+endif
+
 summary({
         'enabled' :  ', '.join(found),
         'disabled' : ', '.join(missing)},

@@ -1,0 +1,411 @@
+#!/bin/bash
+# SPDX-License-Identifier: LGPL-2.1-or-later
+#
+# zork - Zork Text Adventure Game Installer
+# Part of FileSystemds userland-apps toolset
+#
+# This script installs and launches the classic Zork text adventure game
+# with proper error handling, logging, and security measures.
+
+set -euo pipefail
+
+# Script configuration
+readonly SCRIPT_NAME="zork"
+readonly SCRIPT_VERSION="1.0.0"
+readonly APP_NAME="Zork: The Great Underground Empire"
+readonly LOCKFILE="/tmp/.${SCRIPT_NAME}.lock"
+readonly LOGFILE="/var/log/userland-apps/${SCRIPT_NAME}.log"
+readonly GAME_DIR="$HOME/.local/share/zork"
+readonly GAME_FILE="zdungeon.z5"
+readonly GAME_URL="http://mirror.ifarchive.org/if-archive/games/zcode/zdungeon.z5"
+
+# Ensure log directory exists
+mkdir -p "$(dirname "$LOGFILE")" 2>/dev/null || true
+
+# Logging functions
+log() {
+    local level="$1"
+    shift
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')] [$level] $*" | tee -a "$LOGFILE" >&2
+}
+
+log_info() { log "INFO" "$@"; }
+log_warn() { log "WARN" "$@"; }
+log_error() { log "ERROR" "$@"; }
+
+# Error handling
+cleanup() {
+    rm -f "$LOCKFILE"
+}
+trap cleanup EXIT
+
+error_exit() {
+    log_error "$1"
+    exit "${2:-1}"
+}
+
+# Lock mechanism for concurrent safety
+acquire_lock() {
+    if ! (set -C; echo $$ > "$LOCKFILE") 2>/dev/null; then
+        if kill -0 "$(cat "$LOCKFILE" 2>/dev/null)" 2>/dev/null; then
+            error_exit "Another instance of $SCRIPT_NAME is already running (PID: $(cat "$LOCKFILE"))"
+        else
+            log_warn "Removing stale lock file"
+            rm -f "$LOCKFILE"
+            acquire_lock
+        fi
+    fi
+}
+
+# OS detection
+detect_os() {
+    if [[ -f /etc/os-release ]]; then
+        . /etc/os-release
+        echo "${ID:-unknown}"
+    elif command -v lsb_release >/dev/null 2>&1; then
+        lsb_release -si | tr '[:upper:]' '[:lower:]'
+    elif [[ -f /etc/debian_version ]]; then
+        echo "debian"
+    elif [[ -f /etc/redhat-release ]]; then
+        echo "rhel"
+    else
+        echo "unknown"
+    fi
+}
+
+# Package manager detection and installation
+install_package() {
+    local packages=("$@")
+    local os
+    os=$(detect_os)
+    
+    log_info "Detected OS: $os"
+    log_info "Installing packages: ${packages[*]}"
+    
+    case "$os" in
+        ubuntu|debian)
+            if ! command -v apt-get >/dev/null 2>&1; then
+                error_exit "apt-get not found. This script requires a Debian-based system."
+            fi
+            
+            # Update package list if it's more than 1 hour old
+            if [[ ! -f /var/lib/apt/periodic/update-success-stamp ]] || \
+               [[ $(find /var/lib/apt/periodic/update-success-stamp -mmin +60 2>/dev/null) ]]; then
+                log_info "Updating package list..."
+                if ! apt-get update >/dev/null 2>&1; then
+                    log_warn "Failed to update package list, continuing anyway"
+                fi
+            fi
+            
+            # Install packages non-interactively
+            DEBIAN_FRONTEND=noninteractive apt-get install -y "${packages[@]}" || {
+                error_exit "Failed to install packages: ${packages[*]}"
+            }
+            ;;
+        rhel|fedora|centos)
+            if command -v dnf >/dev/null 2>&1; then
+                dnf install -y "${packages[@]}" || error_exit "Failed to install packages with dnf"
+            elif command -v yum >/dev/null 2>&1; then
+                yum install -y "${packages[@]}" || error_exit "Failed to install packages with yum"
+            else
+                error_exit "No suitable package manager found for RHEL-based system"
+            fi
+            ;;
+        arch|manjaro)
+            if command -v pacman >/dev/null 2>&1; then
+                pacman -S --noconfirm "${packages[@]}" || error_exit "Failed to install packages with pacman"
+            else
+                error_exit "pacman not found on Arch-based system"
+            fi
+            ;;
+        alpine)
+            if command -v apk >/dev/null 2>&1; then
+                apk add "${packages[@]}" || error_exit "Failed to install packages with apk"
+            else
+                error_exit "apk not found on Alpine system"
+            fi
+            ;;
+        *)
+            error_exit "Unsupported operating system: $os"
+            ;;
+    esac
+}
+
+# Privilege escalation check
+check_privileges() {
+    if [[ $EUID -eq 0 ]]; then
+        log_warn "Running as root. This may not be necessary for user applications."
+        return 0
+    fi
+    
+    if ! command -v sudo >/dev/null 2>&1; then
+        error_exit "This script requires sudo for package installation. Please install sudo or run as root."
+    fi
+    
+    if ! sudo -n true 2>/dev/null; then
+        log_info "This script requires sudo privileges for package installation."
+        sudo -v || error_exit "Failed to obtain sudo privileges"
+    fi
+}
+
+# Check if Frotz interpreter is installed
+check_frotz_installation() {
+    if command -v frotz >/dev/null 2>&1; then
+        local frotz_version
+        frotz_version=$(frotz -v 2>&1 | head -n1 | grep -oE '[0-9]+\.[0-9]+' || echo "unknown")
+        log_info "Frotz Z-machine interpreter is already installed (version: $frotz_version)"
+        return 0
+    fi
+    return 1
+}
+
+# Install Frotz Z-machine interpreter
+install_frotz() {
+    log_info "Installing Frotz Z-machine interpreter..."
+    
+    local packages
+    local os
+    os=$(detect_os)
+    
+    case "$os" in
+        ubuntu|debian)
+            packages=("frotz" "wget")
+            ;;
+        rhel|fedora|centos)
+            packages=("frotz" "wget")
+            ;;
+        arch|manjaro)
+            packages=("frotz" "wget")
+            ;;
+        alpine)
+            packages=("frotz" "wget")
+            ;;
+        *)
+            packages=("frotz" "wget")
+            ;;
+    esac
+    
+    # Use sudo if not root
+    if [[ $EUID -ne 0 ]]; then
+        sudo bash -c "$(declare -f install_package log log_info log_error error_exit detect_os); install_package ${packages[*]}"
+    else
+        install_package "${packages[@]}"
+    fi
+    
+    # Verify installation
+    if command -v frotz >/dev/null 2>&1; then
+        log_info "Frotz installed successfully"
+        frotz -v 2>&1 | head -n1 | tee -a "$LOGFILE"
+    else
+        error_exit "Installation verification failed - frotz command not found"
+    fi
+}
+
+# Download game file securely
+download_game() {
+    log_info "Setting up game directory..."
+    mkdir -p "$GAME_DIR"
+    
+    if [[ -f "$GAME_DIR/$GAME_FILE" ]]; then
+        log_info "Game file already exists: $GAME_DIR/$GAME_FILE"
+        # Verify file integrity
+        if [[ -s "$GAME_DIR/$GAME_FILE" ]]; then
+            log_info "Game file verification passed"
+            return 0
+        else
+            log_warn "Game file is empty, re-downloading..."
+            rm -f "$GAME_DIR/$GAME_FILE"
+        fi
+    fi
+    
+    log_info "Downloading $APP_NAME game file..."
+    
+    # Check if wget is available
+    if ! command -v wget >/dev/null 2>&1; then
+        error_exit "wget is required to download the game file but was not found"
+    fi
+    
+    # Download with proper error handling and security
+    if ! wget --timeout=30 --tries=3 --no-check-certificate \
+             --user-agent="FileSystemds-userland-apps/$SCRIPT_VERSION" \
+             -O "$GAME_DIR/$GAME_FILE.tmp" "$GAME_URL"; then
+        rm -f "$GAME_DIR/$GAME_FILE.tmp"
+        error_exit "Failed to download game file from $GAME_URL"
+    fi
+    
+    # Verify download
+    if [[ ! -s "$GAME_DIR/$GAME_FILE.tmp" ]]; then
+        rm -f "$GAME_DIR/$GAME_FILE.tmp"
+        error_exit "Downloaded file is empty or corrupted"
+    fi
+    
+    # Move to final location
+    mv "$GAME_DIR/$GAME_FILE.tmp" "$GAME_DIR/$GAME_FILE"
+    log_info "Game file downloaded successfully to $GAME_DIR/$GAME_FILE"
+}
+
+# Launch Zork game
+launch_zork() {
+    log_info "Launching $APP_NAME..."
+    
+    if [[ ! -f "$GAME_DIR/$GAME_FILE" ]]; then
+        error_exit "Game file not found: $GAME_DIR/$GAME_FILE"
+    fi
+    
+    if ! command -v frotz >/dev/null 2>&1; then
+        error_exit "Frotz interpreter not found. Please run with --install-only first."
+    fi
+    
+    # Change to game directory
+    cd "$GAME_DIR" || error_exit "Failed to change to game directory"
+    
+    log_info "Starting Zork adventure..."
+    echo "Welcome to $APP_NAME!"
+    echo "Type 'quit' to exit the game."
+    echo "----------------------------------------"
+    
+    # Launch the game
+    exec frotz "$GAME_FILE"
+}
+
+# Help message
+show_help() {
+    cat << EOF
+$SCRIPT_NAME - $APP_NAME Installer and Launcher
+
+USAGE:
+    $SCRIPT_NAME [OPTIONS]
+
+DESCRIPTION:
+    Installs and launches the classic Zork text adventure game.
+    Downloads the game file and installs the Frotz Z-machine interpreter.
+
+OPTIONS:
+    -h, --help          Show this help message
+    -V, --version       Show version information
+    --install-only      Only install, do not launch the game
+    --force-install     Force reinstallation even if already installed
+    --download-only     Only download game file, don't install interpreter
+
+EXAMPLES:
+    $SCRIPT_NAME                    # Install and launch Zork
+    $SCRIPT_NAME --install-only     # Only install Frotz and download game
+    $SCRIPT_NAME --download-only    # Only download game file
+
+ENVIRONMENT:
+    USERLAND_APPS_LOG_LEVEL    Set logging level (INFO, WARN, ERROR)
+    NO_SUDO                    Skip privilege escalation (for testing)
+    ZORK_GAME_DIR              Override game directory (default: ~/.local/share/zork)
+
+FILES:
+    $LOGFILE              Installation and runtime log
+    $LOCKFILE                     Lock file for concurrent execution
+    $GAME_DIR/$GAME_FILE        Game data file
+
+GAME COMMANDS:
+    Once in the game, try these commands:
+    - look                 Examine your surroundings
+    - inventory            Check what you're carrying
+    - north, south, etc.   Move in different directions
+    - take <item>          Pick up an item
+    - help                 Get in-game help
+    - quit                 Exit the game
+
+For more information, see docs/userland-apps.md
+EOF
+}
+
+# Version information
+show_version() {
+    echo "$SCRIPT_NAME $SCRIPT_VERSION"
+    echo "Part of FileSystemds userland-apps toolset"
+    echo "Game: $APP_NAME"
+}
+
+# Main function
+main() {
+    local install_only=false
+    local force_install=false
+    local download_only=false
+    
+    # Override game directory if environment variable is set
+    if [[ -n "${ZORK_GAME_DIR:-}" ]]; then
+        readonly GAME_DIR="$ZORK_GAME_DIR"
+    fi
+    
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            -V|--version)
+                show_version
+                exit 0
+                ;;
+            --install-only)
+                install_only=true
+                shift
+                ;;
+            --force-install)
+                force_install=true
+                shift
+                ;;
+            --download-only)
+                download_only=true
+                shift
+                ;;
+            *)
+                error_exit "Unknown option: $1. Use --help for usage information."
+                ;;
+        esac
+    done
+    
+    log_info "Starting $SCRIPT_NAME $SCRIPT_VERSION"
+    
+    # Acquire lock
+    acquire_lock
+    
+    # Download only mode
+    if [[ "$download_only" == "true" ]]; then
+        download_game
+        log_info "Game download completed"
+        exit 0
+    fi
+    
+    # Check if already installed (unless forcing)
+    if [[ "$force_install" != "true" ]] && check_frotz_installation && [[ -f "$GAME_DIR/$GAME_FILE" ]]; then
+        log_info "Zork is already installed and ready to play"
+        if [[ "$install_only" == "true" ]]; then
+            log_info "Installation check complete"
+            exit 0
+        else
+            launch_zork
+            exit 0
+        fi
+    fi
+    
+    # Check privileges for installation
+    if [[ -z "${NO_SUDO:-}" ]]; then
+        check_privileges
+    fi
+    
+    # Install Frotz if needed
+    if [[ "$force_install" == "true" ]] || ! check_frotz_installation; then
+        install_frotz
+    fi
+    
+    # Download game file
+    download_game
+    
+    # Launch if not install-only
+    if [[ "$install_only" != "true" ]]; then
+        launch_zork
+    fi
+    
+    log_info "$SCRIPT_NAME completed successfully"
+}
+
+# Execute main function with all arguments
+main "$@"

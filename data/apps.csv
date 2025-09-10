@@ -1,0 +1,26 @@
+# FileSystemds Userland Apps Metadata
+# SPDX-License-Identifier: LGPL-2.1-or-later
+# 
+# This file contains metadata for all userland applications supported by FileSystemds.
+# Each application entry defines its installation and runtime characteristics.
+#
+# Format: app_name,category,filesystem_type,supports_cli,supports_gui,is_paid_app,version,description
+app_name,category,filesystem_type,supports_cli,supports_gui,is_paid_app,version,description
+ubuntu,distribution,ubuntu,true,true,false,1,"Ubuntu Linux distribution container environment"
+debian,distribution,debian,true,true,false,1,"Debian GNU/Linux distribution container environment"
+arch,distribution,arch,true,true,false,1,"Arch Linux distribution container environment"
+kali,distribution,kali,true,true,false,1,"Kali Linux security distribution container environment"
+alpine,distribution,alpine,true,true,false,1,"Alpine Linux lightweight distribution container environment"
+lxde,desktop,debian,false,true,false,1,"Lightweight X11 Desktop Environment"
+xfce,desktop,debian,false,true,false,1,"Xfce Desktop Environment - lightweight and modular"
+octave,math,debian,true,true,false,1,"GNU Octave scientific programming language"
+r-lang,math,debian,true,true,false,1,"R statistical computing language and environment"
+gnuplot,math,debian,true,true,false,1,"Command-line plotting program"
+zork,game,debian,true,true,false,1,"Classic text adventure game (Zork I: The Great Underground Empire)"
+adventure,game,debian,true,true,false,1,"Colossal Cave Adventure - original text adventure game"
+firefox,browser,debian,false,true,false,1,"Mozilla Firefox web browser"
+libreoffice,office,debian,false,true,false,1,"LibreOffice office suite"
+gimp,office,debian,false,true,false,1,"GNU Image Manipulation Program"
+inkscape,office,debian,false,true,false,1,"Inkscape vector graphics editor"
+git-gui,development,debian,false,true,false,1,"Git GUI interface for version control"
+idle,development,debian,false,true,false,1,"Python IDLE development environment"

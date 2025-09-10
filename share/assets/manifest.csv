@@ -1,0 +1,13 @@
+# FileSystemds Userland Assets Manifest
+# SPDX-License-Identifier: LGPL-2.1-or-later
+#
+# This file lists all assets included with the userland-apps toolset.
+# Each asset has been reviewed for security and sanitized where necessary.
+#
+# Format: filename,architecture,size_bytes,sha256sum,purpose
+#
+filename,architecture,size_bytes,sha256sum,purpose
+addNonRootUser.sh,all,464,a41f7e05a0b1ee499543067686552a1a57406adb,Creates non-root user accounts in containers
+execInProot.sh,all,2380,4db52c062add06d8f57a732836dc67f9c99e5896,Executes commands in PRoot environment
+filesystem-tools.sh,all,0,pending,Filesystem management utilities
+container-utils.sh,all,0,pending,Container management utilities

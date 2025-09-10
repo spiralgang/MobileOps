@@ -1,0 +1,350 @@
+#!/bin/bash
+# SPDX-License-Identifier: LGPL-2.1-or-later
+#
+# octave - GNU Octave Mathematical Computing Environment
+# Part of FileSystemds userland-apps toolset
+#
+# This script installs and launches GNU Octave scientific computing environment
+# with proper error handling, logging, and security measures.
+
+set -euo pipefail
+
+# Script configuration
+readonly SCRIPT_NAME="octave"
+readonly SCRIPT_VERSION="1.0.0"
+readonly APP_NAME="GNU Octave"
+readonly LOCKFILE="/tmp/.${SCRIPT_NAME}.lock"
+readonly LOGFILE="/var/log/userland-apps/${SCRIPT_NAME}.log"
+
+# Ensure log directory exists
+mkdir -p "$(dirname "$LOGFILE")" 2>/dev/null || true
+
+# Logging functions
+log() {
+    local level="$1"
+    shift
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')] [$level] $*" | tee -a "$LOGFILE" >&2
+}
+
+log_info() { log "INFO" "$@"; }
+log_warn() { log "WARN" "$@"; }
+log_error() { log "ERROR" "$@"; }
+
+# Error handling
+cleanup() {
+    rm -f "$LOCKFILE"
+}
+trap cleanup EXIT
+
+error_exit() {
+    log_error "$1"
+    exit "${2:-1}"
+}
+
+# Lock mechanism for concurrent safety
+acquire_lock() {
+    if ! (set -C; echo $$ > "$LOCKFILE") 2>/dev/null; then
+        if kill -0 "$(cat "$LOCKFILE" 2>/dev/null)" 2>/dev/null; then
+            error_exit "Another instance of $SCRIPT_NAME is already running (PID: $(cat "$LOCKFILE"))"
+        else
+            log_warn "Removing stale lock file"
+            rm -f "$LOCKFILE"
+            acquire_lock
+        fi
+    fi
+}
+
+# OS detection
+detect_os() {
+    if [[ -f /etc/os-release ]]; then
+        . /etc/os-release
+        echo "${ID:-unknown}"
+    elif command -v lsb_release >/dev/null 2>&1; then
+        lsb_release -si | tr '[:upper:]' '[:lower:]'
+    elif [[ -f /etc/debian_version ]]; then
+        echo "debian"
+    elif [[ -f /etc/redhat-release ]]; then
+        echo "rhel"
+    else
+        echo "unknown"
+    fi
+}
+
+# Package manager detection and installation
+install_package() {
+    local packages=("$@")
+    local os
+    os=$(detect_os)
+    
+    log_info "Detected OS: $os"
+    log_info "Installing packages: ${packages[*]}"
+    
+    case "$os" in
+        ubuntu|debian)
+            if ! command -v apt-get >/dev/null 2>&1; then
+                error_exit "apt-get not found. This script requires a Debian-based system."
+            fi
+            
+            # Update package list if it's more than 1 hour old
+            if [[ ! -f /var/lib/apt/periodic/update-success-stamp ]] || \
+               [[ $(find /var/lib/apt/periodic/update-success-stamp -mmin +60 2>/dev/null) ]]; then
+                log_info "Updating package list..."
+                if ! apt-get update >/dev/null 2>&1; then
+                    log_warn "Failed to update package list, continuing anyway"
+                fi
+            fi
+            
+            # Install packages non-interactively
+            DEBIAN_FRONTEND=noninteractive apt-get install -y "${packages[@]}" || {
+                error_exit "Failed to install packages: ${packages[*]}"
+            }
+            ;;
+        rhel|fedora|centos)
+            if command -v dnf >/dev/null 2>&1; then
+                dnf install -y "${packages[@]}" || error_exit "Failed to install packages with dnf"
+            elif command -v yum >/dev/null 2>&1; then
+                yum install -y "${packages[@]}" || error_exit "Failed to install packages with yum"
+            else
+                error_exit "No suitable package manager found for RHEL-based system"
+            fi
+            ;;
+        arch|manjaro)
+            if command -v pacman >/dev/null 2>&1; then
+                pacman -S --noconfirm "${packages[@]}" || error_exit "Failed to install packages with pacman"
+            else
+                error_exit "pacman not found on Arch-based system"
+            fi
+            ;;
+        alpine)
+            if command -v apk >/dev/null 2>&1; then
+                apk add "${packages[@]}" || error_exit "Failed to install packages with apk"
+            else
+                error_exit "apk not found on Alpine system"
+            fi
+            ;;
+        *)
+            error_exit "Unsupported operating system: $os"
+            ;;
+    esac
+}
+
+# Privilege escalation check
+check_privileges() {
+    if [[ $EUID -eq 0 ]]; then
+        log_warn "Running as root. This may not be necessary for user applications."
+        return 0
+    fi
+    
+    if ! command -v sudo >/dev/null 2>&1; then
+        error_exit "This script requires sudo for package installation. Please install sudo or run as root."
+    fi
+    
+    if ! sudo -n true 2>/dev/null; then
+        log_info "This script requires sudo privileges for package installation."
+        sudo -v || error_exit "Failed to obtain sudo privileges"
+    fi
+}
+
+# Check if Octave is already installed
+check_installation() {
+    if command -v octave >/dev/null 2>&1; then
+        local octave_version
+        octave_version=$(octave --version 2>/dev/null | head -n1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
+        log_info "$APP_NAME is already installed (version: $octave_version)"
+        return 0
+    fi
+    return 1
+}
+
+# Install Octave packages
+install_octave() {
+    log_info "Installing $APP_NAME..."
+    
+    local packages
+    local os
+    os=$(detect_os)
+    
+    case "$os" in
+        ubuntu|debian)
+            packages=("octave" "octave-doc")
+            ;;
+        rhel|fedora|centos)
+            packages=("octave" "octave-doc")
+            ;;
+        arch|manjaro)
+            packages=("octave")
+            ;;
+        alpine)
+            packages=("octave")
+            ;;
+        *)
+            packages=("octave")
+            ;;
+    esac
+    
+    # Use sudo if not root
+    if [[ $EUID -ne 0 ]]; then
+        sudo bash -c "$(declare -f install_package log log_info log_error error_exit detect_os); install_package ${packages[*]}"
+    else
+        install_package "${packages[@]}"
+    fi
+    
+    # Verify installation
+    if command -v octave >/dev/null 2>&1; then
+        log_info "$APP_NAME installed successfully"
+        octave --version 2>/dev/null | head -n1 | tee -a "$LOGFILE"
+    else
+        error_exit "Installation verification failed - octave command not found"
+    fi
+}
+
+# Launch Octave
+launch_octave() {
+    log_info "Launching $APP_NAME..."
+    
+    # Check if we're in a GUI environment
+    if [[ -n "${DISPLAY:-}" ]] || [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
+        log_info "GUI environment detected, attempting to launch Octave GUI"
+        # Try GUI mode first, fall back to CLI if needed
+        if octave --help 2>/dev/null | grep -q "gui"; then
+            exec octave --gui
+        else
+            log_warn "GUI mode not available, launching CLI version"
+            exec octave
+        fi
+    else
+        log_info "Console environment detected, launching Octave CLI"
+        exec octave
+    fi
+}
+
+# Help message
+show_help() {
+    cat << EOF
+$SCRIPT_NAME - $APP_NAME Installer
+
+USAGE:
+    $SCRIPT_NAME [OPTIONS]
+
+DESCRIPTION:
+    Installs and launches GNU Octave, a high-level language for numerical
+    computations. Supports both GUI and command-line interfaces.
+
+OPTIONS:
+    -h, --help          Show this help message
+    -V, --version       Show version information
+    --install-only      Only install, do not launch
+    --force-install     Force reinstallation even if already installed
+    --cli               Force command-line interface (no GUI)
+
+EXAMPLES:
+    $SCRIPT_NAME                    # Install and launch Octave
+    $SCRIPT_NAME --install-only     # Only install Octave
+    $SCRIPT_NAME --cli              # Launch CLI version only
+
+ENVIRONMENT:
+    DISPLAY                    X11 display server (for GUI)
+    WAYLAND_DISPLAY           Wayland display server (for GUI)
+    USERLAND_APPS_LOG_LEVEL   Set logging level (INFO, WARN, ERROR)
+    NO_SUDO                   Skip privilege escalation (for testing)
+
+FILES:
+    $LOGFILE    Installation and runtime log
+    $LOCKFILE                Lock file for concurrent execution
+
+OCTAVE FEATURES:
+    - Matrix and vector operations
+    - Scientific plotting and visualization
+    - Extensive mathematical function library
+    - Compatible with MATLAB syntax
+    - Support for scripts and functions
+
+For more information, see docs/userland-apps.md
+EOF
+}
+
+# Version information
+show_version() {
+    echo "$SCRIPT_NAME $SCRIPT_VERSION"
+    echo "Part of FileSystemds userland-apps toolset"
+}
+
+# Main function
+main() {
+    local install_only=false
+    local force_install=false
+    local force_cli=false
+    
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            -V|--version)
+                show_version
+                exit 0
+                ;;
+            --install-only)
+                install_only=true
+                shift
+                ;;
+            --force-install)
+                force_install=true
+                shift
+                ;;
+            --cli)
+                force_cli=true
+                shift
+                ;;
+            *)
+                error_exit "Unknown option: $1. Use --help for usage information."
+                ;;
+        esac
+    done
+    
+    log_info "Starting $SCRIPT_NAME $SCRIPT_VERSION"
+    
+    # Acquire lock
+    acquire_lock
+    
+    # Check if already installed (unless forcing)
+    if [[ "$force_install" != "true" ]] && check_installation; then
+        if [[ "$install_only" == "true" ]]; then
+            log_info "Installation check complete"
+            exit 0
+        else
+            if [[ "$force_cli" == "true" ]]; then
+                log_info "Launching Octave CLI"
+                exec octave
+            else
+                launch_octave
+            fi
+            exit 0
+        fi
+    fi
+    
+    # Check privileges for installation
+    if [[ -z "${NO_SUDO:-}" ]]; then
+        check_privileges
+    fi
+    
+    # Install Octave
+    install_octave
+    
+    # Launch if not install-only
+    if [[ "$install_only" != "true" ]]; then
+        if [[ "$force_cli" == "true" ]]; then
+            log_info "Launching Octave CLI"
+            exec octave
+        else
+            launch_octave
+        fi
+    fi
+    
+    log_info "$SCRIPT_NAME completed successfully"
+}
+
+# Execute main function with all arguments
+main "$@"
