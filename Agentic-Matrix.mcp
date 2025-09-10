@@ -1,15 +1,14 @@
 # Agentic-Matrix Autonomous Orchestrator for Build Context Protocol (MCP)
 # Production-grade, fully deterministic matrix for spiralgang/UserlAsServer and spiralgang/FileSystemds build automation.
-- NO randomness, all agent attributes and context flows are explicitly assigned and auditable.
-- Layered rationale and references per engineering and MCP standards.
-- Android 10 compatible, cross-language orchestration.
+# NO randomness, all agent attributes and context flows are explicitly assigned and auditable.
+# Layered rationale and references per engineering and MCP standards.
+# Android 10 compatible, cross-language orchestration.
 
 # References:
-- /reference vault
-- Replicating Agentics.pdf
-- MCP Open Standard: https://github.com/mcp-protocol/mcp
-- GitHub Actions Docs: https://docs.github.com/en/actions
-"""
+# - /reference vault
+# - Replicating Agentics.pdf
+# - MCP Open Standard: https://github.com/mcp-protocol/mcp
+# - GitHub Actions Docs: https://docs.github.com/en/actions
 
 # Deterministic Agent Matrix: Each agent’s role, context, and task is explicit and auditable.
 AGENT_MATRIX = [
@@ -207,3 +206,4 @@ References:
 - Replicating Agentics.pdf
 - MCP Open Standard: https://github.com/mcp-protocol/mcp
 - GitHub Actions Docs: https://docs.github.com/en/actions
+"""
