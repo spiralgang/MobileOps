@@ -1,53 +1,97 @@
 ---
-title: systemd Repository Architecture
-category: Contributing
+title: MobileOps Platform Architecture
+category: Platform Documentation
 layout: default
 SPDX-License-Identifier: LGPL-2.1-or-later
 ---
 
-# The systemd Repository Architecture
+# MobileOps Platform Architecture
 
-## Code Map
+## Overview
 
-This document provides a high-level overview of the various components of the systemd repository.
+The MobileOps platform is a modern, cloud-native mobile operations framework designed for enterprise-scale mobile application management, AI-powered automation, and cross-platform deployment.
 
-## Source Code
+## Core Components
 
-Directories in `src/` provide the implementation of all daemons, libraries and command-line tools shipped by the project.
-There are many, and more are constantly added, so we will not enumerate them all here — the directory names are self-explanatory.
+### 1. Platform Management Layer
+- **Platform Launcher**: Central control system for platform initialization and lifecycle management
+- **Component Provisioner**: Dynamic provisioning and configuration of platform components
+- **Asset Manager**: Centralized management of digital assets, models, and resources
 
-### Shared Code
+### 2. AI and Intelligence Layer
+- **AI Core Manager**: Manages AI inference engines, model loading, and resource allocation
+- **AI Shell Hook**: Provides AI-powered shell enhancements and intelligent command suggestions
+- **Neural Network Engines**: Support for various AI model types (LLM, Vision, Neural Networks)
 
-The code that is shared between components is split into a few directories, each with a different purpose:
+### 3. Virtualization and Container Layer
+- **Chisel Container Runtime**: Lightweight container management for mobile workloads
+- **QEMU VM Manager**: Virtual machine lifecycle management for isolated environments
+- **Resource Orchestration**: Dynamic resource allocation and scaling
 
-- 'src/include/uapi/' contains copy of kernel headers we use.
-  'src/include/override/' contains wrappers for libc and kernel headers, to provide several missing symbols.
+### 4. Network and Security Layer
+- **Network Configuration Manager**: Advanced networking setup for containers and VMs
+- **Security Framework**: Comprehensive security scanning and integrity verification
+- **Toolbox Integrity Checker**: System-wide integrity monitoring and verification
 
-- `src/basic/` and `src/fundamental/` — those directories contain code primitives that are used by all other code.
-  `src/fundamental/` is stricter, because it used for EFI and user-space code, while `src/basic/` is only used for user-space code.
-  The code in `src/fundamental/` cannot depend on any other code in the tree, and `src/basic/` can depend only on itself and `src/fundamental/`.
-  For user-space, a static library is built from this code and linked statically in various places.
+### 5. DevOps and Automation Layer
+- **Build and Release System**: Automated building, packaging, and deployment
+- **Plugin System**: Extensible architecture for third-party integrations
+- **Testing Framework**: Comprehensive testing suite with security and performance analysis
 
-- `src/libsystemd/` implements the `libsystemd.so` shared library (also available as static `libsystemd.a`).
-  This code may use anything in `src/basic/` or `src/fundamental/`.
+### 6. Monitoring and Logging Layer
+- **System Log Collector**: Centralized logging with real-time monitoring
+- **Performance Monitoring**: Resource usage tracking and optimization
+- **Binary Update Manager**: Secure update distribution with rollback capabilities
 
-- `src/shared/` provides various utilities and code shared between other components that is exposed as the `libsystemd-shared-<nnn>.so` shared library.
+## Architecture Patterns
 
-The other subdirectories implement individual components.
-They may depend only on `src/fundamental/` + `src/basic/`, or also on `src/libsystemd/`, or also on `src/shared/`.
+### Microservices Architecture
+Each component operates as an independent service with well-defined APIs and responsibilities.
 
-You might wonder what kind of code belongs where.
-In general, the rule is that code should be linked as few times as possible, ideally only once.
-Thus code that is used by "higher-level" components (e.g. our binaries which are linked to `libsystemd-shared-<nnn>.so`),
-would go to a subdirectory specific to that component if it is only used there.
-If the code is to be shared between components, it'd go to `src/shared/`.
-Shared code that is used by multiple components that do not link to `libsystemd-shared-<nnn>.so` may live either in `src/libsystemd/`, `src/basic/`, or `src/fundamental/`.
-Any code that is used only for EFI goes under `src/boot/efi/`, and `src/fundamental/` if is shared with non-EFI components.
+### Event-Driven Communication
+Components communicate through events and message queues for loose coupling.
 
-To summarize:
+### Plugin-Based Extensibility
+Core platform can be extended through a robust plugin system.
 
-`src/include/uapi/`
-- copy of kernel headers
+### Cloud-Native Design
+Built for containerized deployment with Kubernetes and cloud provider integration.
+
+## Data Flow
+
+1. **Platform Initialization**: Platform launcher orchestrates component startup
+2. **Resource Provisioning**: Components request resources through the provisioner
+3. **AI Processing**: AI workloads are distributed across available compute resources
+4. **Network Communication**: All inter-component communication goes through the network layer
+5. **Monitoring and Logging**: All activities are logged and monitored for analysis
+
+## Security Architecture
+
+- **Zero Trust Model**: All components authenticate and authorize every interaction
+- **Encrypted Communication**: TLS/SSL for all inter-component communication
+- **Integrity Verification**: Continuous monitoring of system and component integrity
+- **Secure Updates**: Cryptographically signed updates with rollback capabilities
+
+## Scalability and Performance
+
+- **Horizontal Scaling**: Components can be scaled independently based on demand
+- **Resource Optimization**: AI-driven resource allocation and optimization
+- **Caching Strategies**: Multi-level caching for frequently accessed resources
+- **Load Balancing**: Intelligent load distribution across available resources
+
+## Deployment Models
+
+### On-Premises
+Full control deployment in enterprise data centers.
+
+### Cloud Deployment
+Elastic scaling in public cloud environments (AWS, Azure, GCP).
+
+### Hybrid Cloud
+Seamless operation across on-premises and cloud resources.
+
+### Edge Computing
+Distributed deployment for low-latency mobile applications.
 
 `src/include/override/`
 - wrappers for libc and kernel headers
