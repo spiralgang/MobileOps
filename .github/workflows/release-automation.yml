@@ -1,3 +1,4 @@
+---
 name: Automated Release Management
 
 on:
@@ -32,7 +33,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       changelog: ${{ steps.changelog.outputs.changelog }}
-      
+
     steps:
     - uses: actions/checkout@v4
       with:
@@ -52,29 +53,34 @@ jobs:
     - name: Calculate Version
       id: version
       run: |
-        if [ "${{ github.event_name }}" = "push" ] && [[ "${{ github.ref }}" =~ ^refs/tags/v.* ]]; then
+        if [ "${{ github.event_name }}" = "push" ] && \
+           [[ "${{ github.ref }}" =~ ^refs/tags/v.* ]]; then
           # Extract version from tag
           VERSION=${GITHUB_REF#refs/tags/v}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
         else
           # Calculate next version from current
-          CURRENT_VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "0.0.0")
-          
+          CURRENT_VERSION=$(git describe --tags --abbrev=0 2>/dev/null | \
+            sed 's/^v//' || echo "0.0.0")
+
           case "${{ github.event.inputs.release_type }}" in
             major)
-              NEW_VERSION=$(echo $CURRENT_VERSION | awk -F. '{print $1+1".0.0"}')
+              NEW_VERSION=$(echo $CURRENT_VERSION | \
+                awk -F. '{print $1+1".0.0"}')
               ;;
             minor)
-              NEW_VERSION=$(echo $CURRENT_VERSION | awk -F. '{print $1"."$2+1".0"}')
+              NEW_VERSION=$(echo $CURRENT_VERSION | \
+                awk -F. '{print $1"."$2+1".0"}')
               ;;
             patch)
-              NEW_VERSION=$(echo $CURRENT_VERSION | awk -F. '{print $1"."$2"."$3+1}')
+              NEW_VERSION=$(echo $CURRENT_VERSION | \
+                awk -F. '{print $1"."$2"."$3+1}')
               ;;
             prerelease)
               NEW_VERSION="$CURRENT_VERSION-rc.$(date +%Y%m%d%H%M%S)"
               ;;
           esac
-          
+
           echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
         fi
 
@@ -82,13 +88,14 @@ jobs:
       id: changelog
       run: |
         LAST_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
-        
+
         if [ -n "$LAST_TAG" ]; then
-          CHANGELOG=$(git log $LAST_TAG..HEAD --pretty=format:"- %s (%h)" --no-merges)
+          CHANGELOG=$(git log $LAST_TAG..HEAD \
+            --pretty=format:"- %s (%h)" --no-merges)
         else
           CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges)
         fi
-        
+
         # Save changelog to file for multiline output
         echo "$CHANGELOG" > changelog.txt
         echo "changelog<<EOF" >> $GITHUB_OUTPUT
@@ -98,7 +105,7 @@ jobs:
   build-release-artifacts:
     needs: prepare-release
     runs-on: ubuntu-latest
-    
+
     strategy:
       matrix:
         include:
@@ -132,7 +139,7 @@ jobs:
       run: |
         MESON_ARGS="-Dmode=release -Dportable=true"
         CROSS_FILE=""
-        
+
         if [ "${{ matrix.arch }}" = "aarch64" ]; then
           cat > cross-aarch64.txt << EOF
         [binaries]
@@ -150,11 +157,11 @@ jobs:
         EOF
           CROSS_FILE="--cross-file cross-aarch64.txt"
         fi
-        
+
         if [[ "${{ matrix.target }}" == *"android"* ]]; then
           MESON_ARGS="$MESON_ARGS -Dandroid=true"
         fi
-        
+
         meson setup build $CROSS_FILE $MESON_ARGS
 
     - name: Build
@@ -164,21 +171,22 @@ jobs:
       run: |
         VERSION="${{ needs.prepare-release.outputs.version }}"
         PACKAGE_NAME="filesystemds-$VERSION-${{ matrix.target }}"
-        
+
         mkdir -p "$PACKAGE_NAME"/{bin,lib,docs,scripts}
-        
+
         # Copy binaries
-        find build -name "systemd*" -type f -executable -exec cp {} "$PACKAGE_NAME/bin/" \;
-        
+        find build -name "systemd*" -type f -executable \
+          -exec cp {} "$PACKAGE_NAME/bin/" \;
+
         # Copy libraries
         find build -name "*.so*" -type f -exec cp {} "$PACKAGE_NAME/lib/" \;
-        
+
         # Copy documentation
         cp README*.md LICENSE* "$PACKAGE_NAME/docs/" 2>/dev/null || true
-        
+
         # Copy scripts
         cp -r scripts/* "$PACKAGE_NAME/scripts/" 2>/dev/null || true
-        
+
         # Create manifest
         cat > "$PACKAGE_NAME/manifest.json" << EOF
         {
@@ -196,7 +204,7 @@ jobs:
           ]
         }
         EOF
-        
+
         # Create tarball
         tar -czf "${PACKAGE_NAME}.tar.gz" "$PACKAGE_NAME"
 
@@ -234,11 +242,14 @@ jobs:
       run: |
         VERSION="${{ needs.prepare-release.outputs.version }}"
         if [ -f "android/app/build.gradle" ]; then
-          sed -i "s/versionName \".*\"/versionName \"$VERSION\"/" android/app/build.gradle
+          sed -i "s/versionName \".*\"/versionName \"$VERSION\"/" \
+            android/app/build.gradle
           # Increment version code
-          CURRENT_CODE=$(grep versionCode android/app/build.gradle | sed 's/.*versionCode \([0-9]*\).*/\1/')
+          CURRENT_CODE=$(grep versionCode android/app/build.gradle | \
+            sed 's/.*versionCode \([0-9]*\).*/\1/')
           NEW_CODE=$((CURRENT_CODE + 1))
-          sed -i "s/versionCode $CURRENT_CODE/versionCode $NEW_CODE/" android/app/build.gradle
+          sed -i "s/versionCode $CURRENT_CODE/versionCode $NEW_CODE/" \
+            android/app/build.gradle
         fi
 
     - name: Build Release APK
@@ -361,63 +372,68 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: v${{ needs.prepare-release.outputs.version }}
-        release_name: FileSystemds v${{ needs.prepare-release.outputs.version }}
+        release_name: >
+          FileSystemds v${{ needs.prepare-release.outputs.version }}
         body: |
           ## 🚀 FileSystemds v${{ needs.prepare-release.outputs.version }}
-          
+
           ### 📱 Quick Download
-          
+
           **Android APK:** [filesystemds-mobile-v${{ needs.prepare-release.outputs.version }}.apk](https://github.com/${{ github.repository }}/releases/download/v${{ needs.prepare-release.outputs.version }}/app-release.apk)
-          
+
           ### 📋 What's Changed
-          
+
           ${{ needs.prepare-release.outputs.changelog }}
-          
+
           ### 📦 Available Downloads
-          
+
           - **Android APK** - Mobile application for Android devices
-          - **Linux x86_64** - Desktop/server deployment package  
+          - **Linux x86_64** - Desktop/server deployment package
           - **Linux ARM64** - Embedded systems and ARM-based servers
           - **Container Images** - Docker/Podman containers available on GHCR
-          
+
           ### 🔧 Installation
-          
+
           #### Android
           1. Download the APK file
           2. Enable "Unknown Sources" in Android settings
           3. Install the APK
-          
+
           #### Linux
           1. Download the appropriate tar.gz for your architecture
           2. Extract: `tar -xzf filesystemds-v${{ needs.prepare-release.outputs.version }}-linux-*.tar.gz`
           3. Run: `./filesystemds-*/scripts/platform_launcher.sh init`
-          
+
           #### Container
           ```bash
           docker run --rm -it ghcr.io/${{ github.repository }}:${{ needs.prepare-release.outputs.version }}
           ```
-          
+
           ### 🛡️ Security
-          
+
           All release artifacts are built from the same source code and have passed:
           - Automated security scanning
-          - Dependency vulnerability checks  
+          - Dependency vulnerability checks
           - Code quality analysis
           - Cross-platform compatibility testing
-          
+
           For security issues, please see our [Security Policy](https://github.com/${{ github.repository }}/security/policy).
-          
+
           ---
-          
+
           **Full Changelog**: https://github.com/${{ github.repository }}/compare/v${{ needs.prepare-release.outputs.version }}...v${{ needs.prepare-release.outputs.version }}
         draft: ${{ github.event.inputs.create_draft == 'true' }}
-        prerelease: ${{ contains(needs.prepare-release.outputs.version, 'rc') || contains(needs.prepare-release.outputs.version, 'beta') || contains(needs.prepare-release.outputs.version, 'alpha') }}
+        prerelease: >
+          ${{ contains(needs.prepare-release.outputs.version, 'rc') ||
+              contains(needs.prepare-release.outputs.version, 'beta') ||
+              contains(needs.prepare-release.outputs.version, 'alpha') }}
 
     - name: Upload Release Assets
       run: |
         for file in *.tar.gz *.apk; do
           if [ -f "$file" ]; then
-            gh release upload v${{ needs.prepare-release.outputs.version }} "$file"
+            gh release upload v${{ needs.prepare-release.outputs.version }} \
+              "$file"
           fi
         done
       env:

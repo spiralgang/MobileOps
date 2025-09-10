@@ -1,10 +1,11 @@
+---
 name: Advanced CI Matrix Build
 
 on:
   push:
-    branches: [ main, 'copilot/**', 'feature/**', 'dev/**' ]
+    branches: [main, 'copilot/**', 'feature/**', 'dev/**']
   pull_request:
-    branches: [ main ]
+    branches: [main]
   schedule:
     # Run nightly builds at 2 AM UTC
     - cron: '0 2 * * *'
@@ -18,7 +19,7 @@ on:
         options:
           - all
           - android
-          - desktop 
+          - desktop
           - embedded
       run_tests:
         description: 'Run full test suite'
@@ -40,11 +41,11 @@ jobs:
       docs-changed: ${{ steps.changes.outputs.docs }}
       workflows-changed: ${{ steps.changes.outputs.workflows }}
     steps:
-    - uses: actions/checkout@v4
-    - uses: dorny/paths-filter@v3
-      id: changes
-      with:
-        filters: |
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
           core:
             - 'src/**'
             - 'meson.build'
@@ -63,10 +64,13 @@ jobs:
 
   matrix-build:
     needs: detect-changes
-    if: needs.detect-changes.outputs.core-changed == 'true' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: >
+      needs.detect-changes.outputs.core-changed == 'true' ||
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
-    
+
     strategy:
       fail-fast: false
       matrix:
@@ -82,8 +86,8 @@ jobs:
             target: desktop
             cc: clang
             build_type: debug
-          
-          # ARM64/aarch64 builds 
+
+          # ARM64/aarch64 builds
           - os: ubuntu-22.04
             arch: aarch64
             target: embedded
@@ -94,7 +98,6 @@ jobs:
             target: android
             cc: clang
             build_type: release
-            
           # macOS builds for cross-platform validation
           - os: macos-14
             arch: arm64
@@ -127,7 +130,7 @@ jobs:
               libgcrypt20-dev libssl-dev libcryptsetup-dev \
               libgnutls28-dev libpwquality-dev \
               python3-pip python3-jinja2 python3-lxml
-              
+
             # Install aarch64 cross-compilation tools if needed
             if [ "${{ matrix.arch }}" = "aarch64" ]; then
               sudo apt install -y gcc-aarch64-linux-gnu
@@ -164,7 +167,7 @@ jobs:
     - name: Setup Build Configuration
       run: |
         MESON_ARGS="-Dmode=release"
-        
+
         case "${{ matrix.target }}" in
           android)
             MESON_ARGS="$MESON_ARGS -Dandroid=true -Dportable=true"
@@ -176,11 +179,12 @@ jobs:
             MESON_ARGS="$MESON_ARGS -Ddesktop=true"
             ;;
         esac
-        
+
         if [ "${{ matrix.build_type }}" = "debug" ]; then
-          MESON_ARGS="$MESON_ARGS -Dmode=developer -Db_sanitize=address,undefined"
+          MESON_ARGS="$MESON_ARGS -Dmode=developer"
+          MESON_ARGS="$MESON_ARGS -Db_sanitize=address,undefined"
         fi
-        
+
         echo "MESON_ARGS=$MESON_ARGS" >> $GITHUB_ENV
 
     - name: Configure Build
@@ -189,7 +193,7 @@ jobs:
         if [ "${{ matrix.arch }}" = "aarch64" ]; then
           CROSS_FILE="--cross-file cross-aarch64.txt"
         fi
-        
+
         meson setup build $CROSS_FILE $MESON_ARGS
 
     - name: Build
@@ -197,20 +201,22 @@ jobs:
         meson compile -C build -j $(nproc)
 
     - name: Run Tests
-      if: github.event.inputs.run_tests != 'false' && matrix.arch == 'x86_64'
+      if: >
+        github.event.inputs.run_tests != 'false' &&
+        matrix.arch == 'x86_64'
       run: |
         meson test -C build --print-errorlogs
 
     - name: Package Build Artifacts
       run: |
         mkdir -p artifacts/${{ matrix.target }}-${{ matrix.arch }}
-        
+
         # Copy binaries and libraries
         find build -name "*.so*" -o -name "systemd*" -type f -executable | \
           while read file; do
             cp "$file" artifacts/${{ matrix.target }}-${{ matrix.arch }}/
           done
-          
+
         # Create manifest
         cat > artifacts/${{ matrix.target }}-${{ matrix.arch }}/build-manifest.json << EOF
         {
@@ -233,7 +239,10 @@ jobs:
 
   android-build:
     needs: detect-changes
-    if: needs.detect-changes.outputs.android-changed == 'true' || github.event.inputs.build_targets == 'android' || github.event.inputs.build_targets == 'all'
+    if: >
+      needs.detect-changes.outputs.android-changed == 'true' ||
+      github.event.inputs.build_targets == 'android' ||
+      github.event.inputs.build_targets == 'all'
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -260,8 +269,9 @@ jobs:
     - name: Create Android Project
       run: |
         # Create Android project structure if it doesn't exist
-        mkdir -p android/app/src/main/{java/com/spiralgang/filesystemds,res/{layout,values}}
-        
+        mkdir -p android/app/src/main/java/com/spiralgang/filesystemds
+        mkdir -p android/app/src/main/res/{layout,values}
+
         # Run the Android APK agent setup
         if [ -f scripts/android_apk_agent.sh ]; then
           chmod +x scripts/android_apk_agent.sh
@@ -275,7 +285,10 @@ jobs:
           ~/.gradle/caches
           ~/.gradle/wrapper
           android/.gradle
-        key: ${{ runner.os }}-gradle-${{ hashFiles('android/**/*.gradle*') }}
+        key: >
+          ${{ runner.os }}-gradle-${{
+            hashFiles('android/**/*.gradle*')
+          }}
 
     - name: Build APK
       run: |
@@ -295,8 +308,10 @@ jobs:
   security-scan:
     runs-on: ubuntu-latest
     needs: detect-changes
-    if: needs.detect-changes.outputs.core-changed == 'true' || needs.detect-changes.outputs.scripts-changed == 'true'
-    
+    if: >
+      needs.detect-changes.outputs.core-changed == 'true' ||
+      needs.detect-changes.outputs.scripts-changed == 'true'
+
     steps:
     - uses: actions/checkout@v4
       with:
@@ -323,8 +338,10 @@ jobs:
   performance-test:
     runs-on: ubuntu-latest
     needs: matrix-build
-    if: github.event_name == 'schedule' || github.event.inputs.run_tests == 'true'
-    
+    if: >
+      github.event_name == 'schedule' ||
+      github.event.inputs.run_tests == 'true'
+
     steps:
     - uses: actions/checkout@v4
     
@@ -339,7 +356,8 @@ jobs:
         # Run basic performance tests
         if [ -f scripts/test_suite.sh ]; then
           chmod +x scripts/test_suite.sh
-          timeout 300 scripts/test_suite.sh performance || echo "Performance tests completed with warnings"
+          timeout 300 scripts/test_suite.sh performance || \
+            echo "Performance tests completed with warnings"
         fi
 
     - name: Upload Performance Results
@@ -354,7 +372,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [matrix-build, android-build, security-scan]
     if: always()
-    
+
     steps:
     - name: Build Status Summary
       run: |
@@ -364,9 +382,10 @@ jobs:
         echo "| Matrix Build | ${{ needs.matrix-build.result }} |" >> $GITHUB_STEP_SUMMARY
         echo "| Android Build | ${{ needs.android-build.result }} |" >> $GITHUB_STEP_SUMMARY
         echo "| Security Scan | ${{ needs.security-scan.result }} |" >> $GITHUB_STEP_SUMMARY
-        
-        if [ "${{ needs.matrix-build.result }}" = "success" ] && [ "${{ needs.android-build.result }}" = "success" ]; then
+
+        if [ "${{ needs.matrix-build.result }}" = "success" ] && \
+           [ "${{ needs.android-build.result }}" = "success" ]; then
           echo "✅ All builds completed successfully!" >> $GITHUB_STEP_SUMMARY
         else
-          echo "❌ Some builds failed. Check the individual job logs." >> $GITHUB_STEP_SUMMARY
+          echo "❌ Some builds failed. Check individual job logs." >> $GITHUB_STEP_SUMMARY
         fi
