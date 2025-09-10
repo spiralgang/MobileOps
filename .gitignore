@@ -33,3 +33,11 @@ __pycache__/
 .dir-locals-2.el
 .vscode/
 /pkg/
+
+# Android build artifacts
+/android/build/
+/android/.gradle/
+/android/app/build/
+
+# Platform operations directory
+platform_ops/
