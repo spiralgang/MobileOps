@@ -3190,7 +3190,10 @@ if userland_apps_option != 'false'
                 'tools/userland-apps/r-lang',
                 'tools/userland-apps/git-gui', 
                 'tools/userland-apps/zork',
-                'tools/userland-apps/octave'
+                'tools/userland-apps/octave',
+                'tools/userland-apps/firefox',
+                'tools/userland-apps/idle',
+                'tools/userland-apps/gnuplot'
         )
         
         install_data(userland_apps_tools,
