@@ -1,0 +1,76 @@
+---
+# vi: ts=2 sw=2 et:
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
+name: Code Linting
+on:
+  push:
+    branches:
+      - main
+      - 'copilot/**'
+  pull_request:
+    branches:
+      - main
+      - v[0-9]+-stable
+
+permissions:
+  contents: read
+
+jobs:
+  super-linter:
+    name: Super Linter
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: ${{ github.workflow }}-super-linter-${{ github.ref }}
+      cancel-in-progress: true
+
+    permissions:
+      contents: read
+      packages: read
+      statuses: write
+
+    steps:
+      - name: Repository checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+
+      - name: Lint Code Base
+        uses: super-linter/super-linter/slim@88ea3923a7e1f89dd485d864c5c6d69d40bcc8db
+        env:
+          DEFAULT_BRANCH: main
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LINTER_RULES_PATH: /
+          VALIDATE_ALL_CODEBASE: false
+          VALIDATE_GITHUB_ACTIONS: true
+          VALIDATE_PYTHON_PYLINT: false
+          VALIDATE_PYTHON_FLAKE8: false
+          VALIDATE_JSCPD: false
+
+  shellcheck:
+    name: Differential ShellCheck
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: ${{ github.workflow }}-shellcheck-${{ github.ref }}
+      cancel-in-progress: true
+
+    permissions:
+      security-events: write
+
+    steps:
+      - name: Repository checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+
+      - name: Differential ShellCheck
+        uses: redhat-plumbers-in-action/differential-shellcheck@dd551ce780d8af741f8cd8bab6982667b906b457
+        with:
+          # exclude all `.in` files because they may contain unsupported syntax, and they have to be preprocessed first
+          # TEMPORARY: exclude bash completion files, they would generate too many defects in Code scanning dashboard (600+)
+          # exclude zsh completion files, zsh is not supported by ShellCheck
+          exclude-path: |
+            '**/*.in'
+            'shell-completion/bash/*'
+            'shell-completion/zsh/*'
+          token: ${{ secrets.GITHUB_TOKEN }}
