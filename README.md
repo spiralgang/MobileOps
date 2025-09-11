@@ -1,46 +1,40 @@
 
 
 
+# FileSystemds
 
+[![APK Build Status](https://github.com/spiralgang/FileSystemds/actions/workflows/android-apk-build.yml/badge.svg)](https://github.com/spiralgang/FileSystemds/actions/workflows/android-apk-build.yml)
+[![Latest Release](https://img.shields.io/github/v/release/spiralgang/FileSystemds?include_prereleases)](https://github.com/spiralgang/FileSystemds/releases)
+[![License](https://img.shields.io/github/license/spiralgang/FileSystemds)](https://github.com/spiralgang/FileSystemds/blob/main/LICENSE.GPL2)
 
-### Lagacy README.md》》》》》
+**FileSystemds Mobile Platform** - A modular, AI-driven orchestration system designed for modern mobile/cloud-first environments.
 
-System and Service Manager
+## 📱 Quick Start
 
-[![OBS Packages Status](https://build.opensuse.org/projects/system:systemd/packages/systemd/badge.svg?type=default)](https://build.opensuse.org/project/show/system:systemd)<br/>
-[![Semaphore CI 2.0 Build Status](https://the-real-systemd.semaphoreci.com/badges/systemd/branches/main.svg?style=shields)](https://the-real-systemd.semaphoreci.com/projects/systemd)<br/>
-[![Coverity Scan Status](https://scan.coverity.com/projects/350/badge.svg)](https://scan.coverity.com/projects/systemd)<br/>
-[![OSS-Fuzz Status](https://oss-fuzz-build-logs.storage.googleapis.com/badges/systemd.svg)](https://oss-fuzz-build-logs.storage.googleapis.com/index.html#systemd)<br/>
-[![CIFuzz](https://github.com/systemd/systemd/actions/workflows/cifuzz.yml/badge.svg)](https://github.com/systemd/systemd/actions/workflows/cifuzz.yml)</br>
-[![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/1369/badge)](https://bestpractices.coreinfrastructure.org/projects/1369)<br/>
-[![Fossies codespell report](https://fossies.org/linux/test/systemd-main.tar.gz/codespell.svg)](https://fossies.org/linux/test/systemd-main.tar.gz/codespell.html)</br>
-[![Translation status](https://translate.fedoraproject.org/widget/systemd/svg-badge.svg)](https://translate.fedoraproject.org/engage/systemd/)</br>
-[![Coverage Status](https://coveralls.io/repos/github/systemd/systemd/badge.svg?branch=main)](https://coveralls.io/github/systemd/systemd?branch=main)</br>
-[![Packaging status](https://repology.org/badge/tiny-repos/systemd.svg)](https://repology.org/project/systemd/versions)</br>
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/systemd/systemd/badge)](https://securityscorecards.dev/viewer/?platform=github.com&org=systemd&repo=systemd)
+For complete information about the FileSystemds Mobile Platform, including download links and installation instructions, please see:
 
-## Details
+**➡️ [README_MOBILE.md](README_MOBILE.md) - Complete Mobile Platform Documentation**
 
-Most documentation is available on [systemd's web site](https://systemd.io/).
+## 🏗️ Architecture
 
-Assorted, older, general information about systemd can be found in the [systemd Wiki](https://www.freedesktop.org/wiki/Software/systemd).
+FileSystemds is transitioning from legacy foundations to a modern, modular architecture:
 
-Information about build requirements is provided in the [README file](README).
+- **Modular, composable components** - Replaceable modules instead of hardwired logic
+- **Agent-driven workflows** - Event-driven, API-first automation
+- **Mobile/cloud/edge ready** - Cross-platform, stateless design
+- **Pointer-first artifact management** - Secure, audited asset handling
 
-Consult our [NEWS file](NEWS) for information about what's new in the most recent systemd versions.
+## 📖 Documentation
 
-Please see the [Code Map](docs/ARCHITECTURE.md) for information about this repository's layout and content.
+- [Mobile Platform Guide](README_MOBILE.md) - Primary documentation
+- [Contributing Guidelines](docs/CONTRIBUTING.md) - How to contribute
+- [Code of Conduct](docs/CODE_OF_CONDUCT.md) - Community guidelines
+- [Project Architecture](docs/ARCHITECTURE.md) - Technical overview
 
-Please see the [Hacking guide](docs/HACKING.md) for information on how to hack on systemd and test your modifications.
+## 🤝 Contributing
 
-Please see our [Contribution Guidelines](docs/CONTRIBUTING.md) for more information about filing GitHub Issues and posting GitHub Pull Requests.
+We welcome contributions! Please see our [Contributing Guidelines](docs/CONTRIBUTING.md) for details on how to get started.
 
-When preparing patches for systemd, please follow our [Coding Style Guidelines](docs/CODING_STYLE.md).
+## 📄 License
 
-If you are looking for support, please contact our [mailing list](https://lists.freedesktop.org/mailman/listinfo/systemd-devel), join our [IRC channel #systemd on libera.chat](https://web.libera.chat/#systemd) or [Matrix channel](https://matrix.to/#/#systemd-project:matrix.org)
-
-Stable branches with backported patches are available in the [stable repo](https://github.com/systemd/systemd-stable).
-
-We have a security bug bounty program sponsored by the [Sovereign Tech Fund](https://www.sovereigntechfund.de/) hosted on [YesWeHack](https://yeswehack.com/programs/systemd-bug-bounty-program)
-
-Repositories with distribution packages built from git main are [available on OBS](https://software.opensuse.org//download.html?project=system%3Asystemd&package=systemd)
+This project is licensed under multiple licenses. See the [LICENSE files](LICENSES/) for details.

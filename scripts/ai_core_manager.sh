@@ -1,89 +1,182 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# AI Core Manager for MobileOps Platform
-# Manages AI inference engines, model loading, and resource allocation
+# AI Core Manager for FileSystemds Platform
+# Mobile-optimized AI inference, model management, and intelligent automation
+# Supports on-device processing, edge AI, and cloud integration
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LOG_FILE="/var/log/mobileops/ai_core_manager.log"
-AI_CONFIG_DIR="/etc/mobileops/ai"
-MODEL_CACHE_DIR="/var/cache/mobileops/models"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+export PROJECT_ROOT
+
+# Mobile-friendly directory structure
+if [[ -n "${ANDROID_DATA:-}" ]] || [[ -n "${ANDROID_ROOT:-}" ]]; then
+    BASE_DIR="${ANDROID_DATA}/data/com.spiralgang.filesystemds"
+else
+    BASE_DIR="${HOME}/.local/share/filesystemds"
+fi
+
+LOG_DIR="$BASE_DIR/logs"
+CONFIG_DIR="$BASE_DIR/config"
+MODEL_CACHE_DIR="$BASE_DIR/cache/models"
+AI_LIB_DIR="$BASE_DIR/lib/ai"
+
+LOG_FILE="$LOG_DIR/ai_core_manager.log"
+
+# Ensure directories exist
+mkdir -p "$LOG_DIR" "$CONFIG_DIR" "$MODEL_CACHE_DIR" "$AI_LIB_DIR"
 
 log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
+    local level="${1:-INFO}"
+    shift
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$level] $*" | tee -a "$LOG_FILE"
 }
 
-start_ai_engine() {
-    local engine_type="$1"
-    log "INFO: Starting AI engine: $engine_type"
+log_info() { log "INFO" "$@"; }
+log_warn() { log "WARN" "$@"; }
+log_error() { log "ERROR" "$@"; }
+log_success() { log "SUCCESS" "$@"; }
+
+init_ai_core() {
+    log_info "Initializing AI Core Manager"
     
-    case "$engine_type" in
-        "neural-net")
-            log "INFO: Initializing neural network engine"
-            # Neural network engine startup
-            ;;
-        "llm")
-            log "INFO: Initializing large language model engine"
-            # LLM engine startup
-            ;;
-        "vision")
-            log "INFO: Initializing computer vision engine"
-            # Vision engine startup
-            ;;
-        *)
-            log "ERROR: Unknown AI engine type: $engine_type"
-            return 1
-            ;;
-    esac
+    # Create AI configuration
+    cat > "$CONFIG_DIR/ai_core.conf" << EOF
+# FileSystemds AI Core Configuration
+ai_core_version=1.0.0
+initialization_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+# AI Engine Configuration
+inference_backend=cpu
+model_cache_size=1GB
+max_concurrent_inferences=2
+memory_limit=512MB
+
+# Mobile optimizations
+power_aware=true
+battery_conservation=true
+thermal_throttling=true
+background_processing=false
+
+# Model management
+auto_download_models=false
+pointer_first_assets=true
+require_explicit_fetch=true
+EOF
+
+    # Initialize model cache structure
+    mkdir -p "$MODEL_CACHE_DIR"/{small,medium,large}
+    
+    # Create model manifest
+    cat > "$MODEL_CACHE_DIR/manifest.json" << EOF
+{
+  "cache_version": "1.0.0",
+  "last_updated": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "models": {},
+  "total_size": "0MB",
+  "cache_policy": "pointer-first"
+}
+EOF
+
+    log_success "AI Core Manager initialized successfully"
 }
 
-load_model() {
-    local model_name="$1"
-    local model_path="$MODEL_CACHE_DIR/$model_name"
+start_ai_core() {
+    log_info "Starting AI Core services"
     
-    log "INFO: Loading AI model: $model_name"
-    
-    if [[ ! -f "$model_path" ]]; then
-        log "ERROR: Model not found: $model_path"
+    if [[ ! -f "$CONFIG_DIR/ai_core.conf" ]]; then
+        log_error "AI Core not initialized. Run 'init' first."
         return 1
     fi
     
-    log "INFO: Model $model_name loaded successfully"
+    # Start AI processing daemon (mock for now)
+    log_info "Starting AI inference engine"
+    
+    # Create PID file for tracking
+    echo $$ > "$BASE_DIR/ai_core.pid"
+    
+    log_success "AI Core services started"
 }
 
-monitor_resources() {
-    log "INFO: Monitoring AI core resources"
-    # Resource monitoring logic
-    local gpu_usage=$(nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits 2>/dev/null || echo "0")
-    local memory_usage=$(free | awk '/^Mem:/ {printf "%.1f", $3/$2 * 100.0}')
+stop_ai_core() {
+    log_info "Stopping AI Core services"
     
-    log "INFO: GPU Usage: ${gpu_usage}%, Memory Usage: ${memory_usage}%"
+    if [[ -f "$BASE_DIR/ai_core.pid" ]]; then
+        local pid
+        pid=$(cat "$BASE_DIR/ai_core.pid")
+        if kill -0 "$pid" 2>/dev/null; then
+            kill "$pid"
+            rm -f "$BASE_DIR/ai_core.pid"
+        fi
+    fi
+    
+    log_success "AI Core services stopped"
+}
+
+status_ai_core() {
+    if [[ ! -f "$CONFIG_DIR/ai_core.conf" ]]; then
+        echo "AI Core Status: NOT INITIALIZED"
+        return 1
+    fi
+    
+    if [[ -f "$BASE_DIR/ai_core.pid" ]]; then
+        echo "AI Core Status: RUNNING"
+    else
+        echo "AI Core Status: STOPPED"
+    fi
+}
+
+show_help() {
+    cat << EOF
+FileSystemds AI Core Manager - Mobile AI Platform
+
+USAGE:
+    $0 <command> [options]
+
+COMMANDS:
+    init        Initialize AI Core for first use
+    start       Start AI processing services
+    stop        Stop AI processing services
+    status      Show AI Core status
+    help        Show this help message
+
+EXAMPLES:
+    $0 init                 # Initialize AI Core
+    $0 start                # Start AI services
+    $0 status               # Check status
+
+EOF
 }
 
 main() {
-    mkdir -p "$(dirname "$LOG_FILE")" "$AI_CONFIG_DIR" "$MODEL_CACHE_DIR"
-    log "INFO: AI Core Manager started"
+    local command="${1:-help}"
     
-    case "${1:-status}" in
+    case "$command" in
+        "init")
+            init_ai_core
+            ;;
         "start")
-            start_ai_engine "${2:-neural-net}"
+            start_ai_core
             ;;
-        "load")
-            load_model "${2:-default.model}"
-            ;;
-        "monitor")
-            monitor_resources
+        "stop")
+            stop_ai_core
             ;;
         "status")
-            log "INFO: AI Core Manager is running"
-            monitor_resources
+            status_ai_core
+            ;;
+        "help"|"-h"|"--help")
+            show_help
             ;;
         *)
-            echo "Usage: $0 {start|load|monitor|status} [args]"
+            echo "Unknown command: $command"
+            echo "Run '$0 help' for usage information"
             exit 1
             ;;
     esac
 }
 
-main "$@"
+# Script entry point
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi
