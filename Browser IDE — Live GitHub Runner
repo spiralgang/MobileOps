@@ -1,0 +1,142 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Browser IDE — Live GitHub Runner</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; display:flex; height:100vh; }
+    #left { width: 50%; border-right: 1px solid #ddd; display:flex; flex-direction:column; }
+    #right { width: 50%; display:flex; flex-direction:column; }
+    header { padding:10px; background:#f6f6f6; border-bottom:1px solid #eaeaea; }
+    textarea { flex:1; width:100%; padding:10px; box-sizing:border-box; font-family: monospace; font-size:13px; }
+    #controls { padding:10px; display:flex; gap:8px; flex-wrap:wrap; }
+    input, button, select { padding:6px; font-size:14px; }
+    pre { margin:0; padding:10px; background:#111; color:#0f0; height:50vh; overflow:auto; font-family: monospace; font-size:12px; }
+  </style>
+</head>
+<body>
+  <div id="left">
+    <header>
+      <strong>Browser IDE (minimal)</strong>
+      <div id="controls">
+        <input id="token" placeholder="GitHub PAT" size="36" />
+        <button id="connectBtn">Connect WS</button>
+        <select id="workspaces"></select>
+      </div>
+      <div id="repoControls">
+        <input id="owner" placeholder="owner" />
+        <input id="repo" placeholder="repo" />
+        <input id="branch" placeholder="branch (optional)" />
+        <button id="cloneBtn">Clone</button>
+      </div>
+    </header>
+    <textarea id="editor" placeholder="Open or create a file, edit, then Save to workspace"></textarea>
+    <div style="padding:8px;display:flex;gap:8px;">
+      <input id="filePath" placeholder="path/inside/repo.txt" style="flex:1"/>
+      <button id="saveFileBtn">Save to workspace</button>
+      <button id="commitBtn">Commit</button>
+      <button id="pushBtn">Push</button>
+      <button id="prBtn">Create PR</button>
+    </div>
+  </div>
+
+  <div id="right">
+    <header><strong>Live Runner Console</strong></header>
+    <pre id="console">disconnected</pre>
+  </div>
+
+<script>
+(function(){
+  let ws;
+  let token;
+  let currentWorkspaceId = null;
+  const consoleEl = document.getElementById('console');
+  const workspacesSelect = document.getElementById('workspaces');
+
+  function log(level, text){
+    const t = `[${new Date().toISOString()}] ${text}`;
+    consoleEl.textContent += "\\n" + t;
+    consoleEl.scrollTop = consoleEl.scrollHeight;
+  }
+
+  document.getElementById('connectBtn').addEventListener('click', () => {
+    token = document.getElementById('token').value.trim();
+    if(!token) { alert('enter PAT'); return; }
+    ws = new WebSocket(`ws://${location.host}`);
+    ws.onopen = () => {
+      consoleEl.textContent = '';
+      log('info','ws open; sending auth');
+      ws.send(JSON.stringify({ type: 'auth', token }));
+    };
+    ws.onmessage = (ev) => {
+      try {
+        const m = JSON.parse(ev.data);
+        if(m.type === 'log') {
+          log(m.level, m.text);
+        } else if(m.type === 'result') {
+          log('result', JSON.stringify(m.data));
+          if(m.action === 'clone' && m.data.workspaceId){
+            const opt = document.createElement('option');
+            opt.value = m.data.workspaceId;
+            opt.text = `${m.data.workspaceId} (${m.data.path})`;
+            workspacesSelect.appendChild(opt);
+            workspacesSelect.value = m.data.workspaceId;
+            currentWorkspaceId = m.data.workspaceId;
+          }
+        } else if(m.type === 'error') {
+          log('error', m.message);
+        } else {
+          log('info', JSON.stringify(m));
+        }
+      } catch(e){
+        log('error', ev.data);
+      }
+    };
+    ws.onclose = () => log('info','ws closed');
+    ws.onerror = (e)=> log('error', 'ws error');
+  });
+
+  document.getElementById('cloneBtn').addEventListener('click', () => {
+    const owner = document.getElementById('owner').value.trim();
+    const repo = document.getElementById('repo').value.trim();
+    const branch = document.getElementById('branch').value.trim();
+    if(!owner || !repo) { alert('owner & repo required'); return; }
+    ws.send(JSON.stringify({ type:'run', action:'clone', payload: { owner, repo, branch } }));
+  });
+
+  document.getElementById('saveFileBtn').addEventListener('click', () => {
+    const filePath = document.getElementById('filePath').value.trim();
+    const content = document.getElementById('editor').value;
+    const wsId = workspacesSelect.value;
+    if(!wsId) { alert('select workspace'); return; }
+    ws.send(JSON.stringify({ type:'run', action:'write', payload: { workspaceId: wsId, path: filePath, content } }));
+  });
+
+  document.getElementById('commitBtn').addEventListener('click', () => {
+    const wsId = workspacesSelect.value;
+    if(!wsId) { alert('select workspace'); return; }
+    const msg = prompt('Commit message', 'update from web IDE');
+    ws.send(JSON.stringify({ type:'run', action:'commit', payload: { workspaceId: wsId, message: msg } }));
+  });
+
+  document.getElementById('pushBtn').addEventListener('click', () => {
+    const wsId = workspacesSelect.value;
+    const branch = prompt('Branch to push to (remote)', 'main');
+    if(!wsId) { alert('select workspace'); return; }
+    ws.send(JSON.stringify({ type:'run', action:'push', payload: { workspaceId: wsId, branch } }));
+  });
+
+  document.getElementById('prBtn').addEventListener('click', () => {
+    const wsId = workspacesSelect.value;
+    if(!wsId) { alert('select workspace'); return; }
+    const head = prompt('Head branch (your branch)', 'feature-branch');
+    const base = prompt('Base branch', 'main');
+    const title = prompt('PR title', 'Automated PR from web IDE');
+    const body = prompt('PR body (optional)', '');
+    ws.send(JSON.stringify({ type:'run', action:'pr', payload: { workspaceId: wsId, headBranch: head, baseBranch: base, title, body } }));
+  });
+
+})();
+</script>
+</body>
+</html>
