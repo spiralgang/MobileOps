@@ -366,13 +366,13 @@ jobs:
         done
 
     - name: Create Release
-      uses: actions/create-release@v1
+      uses: softprops/action-gh-release@v1
       id: create_release
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: v${{ needs.prepare-release.outputs.version }}
-        release_name: >
+        name: >
           FileSystemds v${{ needs.prepare-release.outputs.version }}
         body: |
           ## 🚀 FileSystemds v${{ needs.prepare-release.outputs.version }}

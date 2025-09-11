@@ -8,6 +8,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+export PROJECT_ROOT
 
 # Mobile-friendly directory structure
 if [[ -n "${ANDROID_DATA:-}" ]] || [[ -n "${ANDROID_ROOT:-}" ]]; then

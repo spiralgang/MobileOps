@@ -8,6 +8,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+export PROJECT_ROOT
 
 # Mobile-friendly directory structure (user-space for Android)
 if [[ -n "${ANDROID_DATA:-}" ]] || [[ -n "${ANDROID_ROOT:-}" ]]; then
@@ -44,7 +45,8 @@ log_success() { log "SUCCESS" "$@"; }
 
 detect_environment() {
     local env_type="unknown"
-    local arch="$(uname -m)"
+    local arch
+    arch="$(uname -m)"
     
     if [[ -n "${ANDROID_DATA:-}" ]]; then
         env_type="android"
@@ -279,7 +281,7 @@ main() {
             ;;
         "cleanup")
             log_info "Cleaning up temporary files"
-            rm -rf "$CACHE_DIR"/* || true
+            rm -rf "${CACHE_DIR:?}"/* || true
             log_success "Cleanup completed"
             ;;
         "help"|"-h"|"--help")
@@ -297,48 +299,3 @@ main() {
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
 fi
-
-status_platform() {
-    log "INFO: Checking MobileOps Platform status"
-    
-    echo "=== MOBILEOPS PLATFORM STATUS ==="
-    echo "AI Core Status:"
-    "$SCRIPT_DIR/ai_core_manager.sh" status
-    
-    echo -e "\nNetwork Status:"
-    "$SCRIPT_DIR/network_configure.sh" monitor
-    
-    echo -e "\nPlugin Status:"
-    "$SCRIPT_DIR/plugin_manager.sh" monitor
-}
-
-main() {
-    mkdir -p "$(dirname "$LOG_FILE")"
-    log "INFO: Platform Launcher started"
-    
-    case "${1:-status}" in
-        "init")
-            initialize_platform
-            ;;
-        "start")
-            start_platform
-            ;;
-        "stop")
-            stop_platform
-            ;;
-        "restart")
-            stop_platform
-            sleep 2
-            start_platform
-            ;;
-        "status")
-            status_platform
-            ;;
-        *)
-            echo "Usage: $0 {init|start|stop|restart|status}"
-            exit 1
-            ;;
-    esac
-}
-
-main "$@"
