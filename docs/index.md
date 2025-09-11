@@ -3,54 +3,96 @@ layout: default
 SPDX-License-Identifier: LGPL-2.1-or-later
 ---
 
-# FileSystemds Mobile Platform
+# System and Service Manager
 
-FileSystemds is a modular, agent-driven orchestration system designed for modern mobile/cloud-first environments. Built from highly modified foundations, it's evolving into a next-generation platform for mobile operations.
+systemd is a suite of basic building blocks for a Linux system. It provides a system and service manager that runs as PID 1 and starts the rest of the system.
 
-## Key Features
+systemd provides aggressive parallelization capabilities, uses socket and D-Bus activation for starting services, offers on-demand starting of daemons, keeps track of processes using Linux control groups, maintains mount and automount points, and implements an elaborate transactional dependency-based service control logic. systemd supports SysV and LSB init scripts and works as a replacement for sysvinit.
 
-- **Modular Architecture**: Replaceable components instead of monolithic design
-- **Agent-Driven Workflows**: Event-driven, API-first automation for both human and non-human contributors
-- **Mobile/Cloud/Edge Ready**: Cross-platform, stateless design optimized for modern environments
-- **Pointer-First Artifact Management**: Secure, audited handling of large assets and models
-- **Observable & Testable**: Structured logging, metrics, and comprehensive testing
+Other parts include a logging daemon, utilities to control basic system configuration like the hostname, date, locale, maintain a list of logged-in users and running containers and virtual machines, system accounts, runtime directories and settings, and daemons to manage simple network configuration, network time synchronization, log forwarding, and name resolution.
 
-## Getting Started
-
-For complete installation and usage instructions, see the [Mobile Platform Documentation](../README_MOBILE.md).
-
-## Documentation Categories
+---
 
 {% assign by_category = site.pages | group_by:"category" %}
 {% assign extra_pages = site.data.extra_pages | group_by:"category" %}
 {% assign merged = by_category | concat: extra_pages | sort:"name" %}
 
 {% for pair in merged %}
-  {% assign category = pair.name %}
-  {% if category != "" %}
-
-### {{ category }}
-
-    {% assign sorted_pages = pair.items | sort: "title" %}
-    {% for page in sorted_pages %}
-      {% if page.title and page.title != "" %}
-* [{{ page.title }}]({{ page.url | relative_url }})
-      {% endif %}
-    {% endfor %}
+  {% if pair.name != "" %}
+## {{ pair.name }}
+{% assign sorted = pair.items | sort:"title" %}{% for page in sorted %}
+* [{{ page.title }}]({{ page.url | relative_url }}){% endfor %}
   {% endif %}
 {% endfor %}
 
-## Architecture Overview
+## See also
 
-FileSystemds represents a transition from legacy personal computing software to a modern, modular platform. The architecture emphasizes:
+* [Introductory blog story](https://0pointer.de/blog/projects/systemd.html)
+* [Three](https://0pointer.de/blog/projects/systemd-update.html) [status](https://0pointer.de/blog/projects/systemd-update-2.html) [updates](https://0pointer.de/blog/projects/systemd-update-3.html)
+* The [Wikipedia article](https://en.wikipedia.org/wiki/systemd)
 
-- **Modular Services**: Each major feature is a replaceable module
-- **API-First Design**: All functionality is accessible via clean APIs
-- **Event-Driven Operations**: Reactive, autonomous workflows
-- **Mobile-First Principles**: Optimized for mobile and edge computing environments
+---
 
-For detailed architectural information, see the [Architecture Documentation](ARCHITECTURE.md).
+<pre class="intro-code-block">
+Welcome to <span class="color-blue">Fedora 20 (Heisenbug)</span>!
 
-## Contributing
+[  <span class="color-green">OK</span>  ] Reached target Remote File Systems.
+[  <span class="color-green">OK</span>  ] Listening on Delayed Shutdown Socket.
+[  <span class="color-green">OK</span>  ] Listening on /dev/initctl Compatibility Named Pipe.
+[  <span class="color-green">OK</span>  ] Reached target Paths.
+[  <span class="color-green">OK</span>  ] Reached target Encrypted Volumes.
+[  <span class="color-green">OK</span>  ] Listening on Journal Socket.
+         Mounting Huge Pages File System...
+         Mounting POSIX Message Queue File System...
+         Mounting Debug File System...
+         Starting Journal Service...
+[  <span class="color-green">OK</span>  ] Started Journal Service.
+         Mounting Configuration File System...
+         Mounting FUSE Control File System...
+[  <span class="color-green">OK</span>  ] Created slice Root Slice.
+[  <span class="color-green">OK</span>  ] Created slice User and Session Slice.
+[  <span class="color-green">OK</span>  ] Created slice System Slice.
+[  <span class="color-green">OK</span>  ] Reached target Slices.
+[  <span class="color-green">OK</span>  ] Reached target Swap.
+         Mounting Temporary Directory...
+[  <span class="color-green">OK</span>  ] Reached target Local File Systems (Pre).
+         Starting Load Random Seed...
+         Starting Load/Save Random Seed...
+[  <span class="color-green">OK</span>  ] Mounted Huge Pages File System.
+[  <span class="color-green">OK</span>  ] Mounted POSIX Message Queue File System.
+[  <span class="color-green">OK</span>  ] Mounted Debug File System.
+[  <span class="color-green">OK</span>  ] Mounted Configuration File System.
+[  <span class="color-green">OK</span>  ] Mounted FUSE Control File System.
+[  <span class="color-green">OK</span>  ] Mounted Temporary Directory.
+[  <span class="color-green">OK</span>  ] Started Load Random Seed.
+[  <span class="color-green">OK</span>  ] Started Load/Save Random Seed.
+[  <span class="color-green">OK</span>  ] Reached target Local File Systems.
+         Starting Recreate Volatile Files and Directories...
+         Starting Trigger Flushing of Journal to Persistent Storage...
+[  <span class="color-green">OK</span>  ] Started Recreate Volatile Files and Directories.
+         Starting Record System Reboot/Shutdown in UTMP...
+[  <span class="color-green">OK</span>  ] Started Trigger Flushing of Journal to Persistent Storage.
+[  <span class="color-green">OK</span>  ] Started Record System Reboot/Shutdown in UTMP.
+[  <span class="color-green">OK</span>  ] Reached target System Initialization.
+[  <span class="color-green">OK</span>  ] Reached target Timers.
+[  <span class="color-green">OK</span>  ] Listening on D-Bus System Message Bus Socket.
+[  <span class="color-green">OK</span>  ] Reached target Sockets.
+[  <span class="color-green">OK</span>  ] Reached target Basic System.
+         Starting Permit User Sessions...
+         Starting D-Bus System Message Bus...
+[  <span class="color-green">OK</span>  ] Started D-Bus System Message Bus.
+         Starting Login Service...
+         Starting Cleanup of Temporary Directories...
+[  <span class="color-green">OK</span>  ] Started Permit User Sessions.
+[  <span class="color-green">OK</span>  ] Started Cleanup of Temporary Directories.
+         Starting Console Getty...
+[  <span class="color-green">OK</span>  ] Started Console Getty.
+[  <span class="color-green">OK</span>  ] Reached target Login Prompts.
+[  <span class="color-green">OK</span>  ] Started Login Service.
+[  <span class="color-green">OK</span>  ] Reached target Multi-User System.
 
-We welcome contributions that advance our modular, agent-driven vision. See our [Contributing Guidelines](CONTRIBUTING.md) for details on how to get involved.
+Fedora release 20 (Heisenbug)
+Kernel 3.9.2-200.fc18.x86_64 on an x86_64 (console)
+
+fedora login:
+</pre>
