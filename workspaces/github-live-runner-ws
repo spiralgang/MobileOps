@@ -1,0 +1,18 @@
+{
+  "name": "github-live-runner-ws",
+  "version": "1.0.0",
+  "description": "WebSocket server + minimal browser IDE to perform GitHub actions (clone, edit, commit, push, PR, workflow dispatch) with live logs.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node-server.js"
+  },
+  "author": "spiralgang",
+  "license": "MIT",
+  "dependencies": {
+    "@octokit/rest": "^19.0.0",
+    "express": "^4.18.2",
+    "ws": "^8.13.0",
+    "dotenv": "^16.3.1",
+    "uuid": "^9.0.0"
+  }
+}
