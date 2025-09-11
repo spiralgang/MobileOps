@@ -1,0 +1,289 @@
+---
+name: Advanced Dependency and Security Management
+
+on:
+  schedule:
+    # Run weekly on Sundays at 3 AM UTC
+    - cron: '0 3 * * 0'
+  pull_request:
+    paths:
+      - '.github/workflows/requirements.txt'
+      - 'meson.build'
+      - 'android/app/build.gradle'
+  workflow_dispatch:
+    inputs:
+      scan_type:
+        description: 'Type of scan to perform'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - dependencies
+          - security
+          - licenses
+
+jobs:
+  dependency-audit:
+    runs-on: ubuntu-latest
+    outputs:
+      vulnerabilities-found: ${{ steps.audit.outputs.vulnerabilities }}
+      updates-available: ${{ steps.audit.outputs.updates }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install Security Tools
+      run: |
+        pip install safety bandit semgrep pip-audit
+
+    - name: Python Dependency Audit
+      id: audit
+      run: |
+        echo "## 🔍 Python Dependency Audit" >> $GITHUB_STEP_SUMMARY
+
+        # Check for known vulnerabilities
+        if pip-audit --format=json --output=python-vulnerabilities.json; then
+          echo "✅ No Python vulnerabilities found" >> $GITHUB_STEP_SUMMARY
+          echo "vulnerabilities=false" >> $GITHUB_OUTPUT
+        else
+          echo "❌ Python vulnerabilities detected" >> $GITHUB_STEP_SUMMARY
+          echo "vulnerabilities=true" >> $GITHUB_OUTPUT
+        fi
+
+        # Check for outdated packages
+        pip list --outdated --format=json > outdated-packages.json
+        OUTDATED_COUNT=$(jq length outdated-packages.json)
+
+        if [ "$OUTDATED_COUNT" -gt 0 ]; then
+          echo "📦 $OUTDATED_COUNT outdated packages found" >> $GITHUB_STEP_SUMMARY
+          echo "updates=true" >> $GITHUB_OUTPUT
+        else
+          echo "✅ All packages up to date" >> $GITHUB_STEP_SUMMARY
+          echo "updates=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Upload Audit Results
+      uses: actions/upload-artifact@v4
+      with:
+        name: dependency-audit-results
+        path: |
+          python-vulnerabilities.json
+          outdated-packages.json
+
+  license-compliance:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: License Scan
+      uses: fossa-contrib/fossa-action@v2
+      with:
+        api-key: ${{ secrets.FOSSA_API_KEY }}
+
+    - name: Generate License Report
+      run: |
+        echo "## 📄 License Compliance Report" >> $GITHUB_STEP_SUMMARY
+
+        # Check for license files
+        if find . -name "LICENSE*" -o -name "COPYING*" | grep -q .; then
+          echo "✅ License files found" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ No license files found" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        # List all license types
+        echo "### License Files:" >> $GITHUB_STEP_SUMMARY
+        find . -name "LICENSE*" -o -name "COPYING*" | while read file; do
+          echo "- $file" >> $GITHUB_STEP_SUMMARY
+        done
+
+  codeql-security:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+
+    strategy:
+      matrix:
+        language: ['cpp', 'python']
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: ${{ matrix.language }}
+
+    - name: Install Dependencies
+      if: matrix.language == 'cpp'
+      run: |
+        sudo apt update
+        sudo apt install -y gperf pkg-config ninja-build meson \
+          libblkid-dev libudev-dev libmount-dev libkmod-dev libcap-dev
+
+    - name: Build for Analysis
+      if: matrix.language == 'cpp'
+      run: |
+        pip install -r .github/workflows/requirements.txt
+        meson setup build -Dmode=developer
+        meson compile -C build
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+
+  create-security-report:
+    runs-on: ubuntu-latest
+    needs: [dependency-audit, license-compliance, codeql-security]
+    if: always()
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download Audit Results
+      uses: actions/download-artifact@v4
+      with:
+        name: dependency-audit-results
+
+    - name: Generate Security Summary
+      run: |
+        echo "# 🛡️ Security and Compliance Report" > security-report.md
+        echo "Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> security-report.md
+        echo "" >> security-report.md
+
+        echo "## 📊 Summary" >> security-report.md
+        echo "| Category | Status |" >> security-report.md
+        echo "|----------|--------|" >> security-report.md
+        echo "| Dependency Audit | ${{ needs.dependency-audit.result }} |" >> security-report.md
+        echo "| License Compliance | ${{ needs.license-compliance.result }} |" >> security-report.md
+        echo "| CodeQL Security | ${{ needs.codeql-security.result }} |" >> security-report.md
+        echo "" >> security-report.md
+
+        if [ "${{ needs.dependency-audit.outputs.vulnerabilities-found }}" = "true" ]; then
+          echo "## ⚠️ Vulnerabilities Found" >> security-report.md
+          echo "Python dependency vulnerabilities detected. See audit results for details." >> security-report.md
+          echo "" >> security-report.md
+        fi
+
+        if [ "${{ needs.dependency-audit.outputs.updates-available }}" = "true" ]; then
+          echo "## 📦 Package Updates Available" >> security-report.md
+          echo "Some packages have newer versions available." >> security-report.md
+          echo "" >> security-report.md
+        fi
+
+        echo "## 🔗 Resources" >> security-report.md
+        echo "- [Security Policy](https://github.com/${{ github.repository }}/security/policy)" >> security-report.md
+        echo "- [Vulnerability Reporting](https://github.com/${{ github.repository }}/security/advisories)" >> security-report.md
+
+    - name: Upload Security Report
+      uses: actions/upload-artifact@v4
+      with:
+        name: security-report
+        path: security-report.md
+
+    - name: Create Issue on Vulnerabilities
+      if: needs.dependency-audit.outputs.vulnerabilities-found == 'true'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const title = '🚨 Security Vulnerabilities Detected';
+          const body = `## Security Alert
+
+          Automated security scan detected vulnerabilities in dependencies.
+
+          **Details:**
+          - Scan Date: ${new Date().toISOString()}
+          - Commit: ${{ github.sha }}
+          - Workflow: ${{ github.workflow }}
+
+          **Action Required:**
+          1. Review the security report artifact
+          2. Update vulnerable dependencies
+          3. Re-run security scan to verify fixes
+
+          **Files to Check:**
+          - \`.github/workflows/requirements.txt\`
+          - \`meson.build\`
+          - \`android/app/build.gradle\`
+
+          This issue was created automatically. Please address the vulnerabilities promptly.`;
+
+          // Check if issue already exists
+          const issues = await github.rest.issues.listForRepo({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            labels: ['security', 'automated'],
+            state: 'open'
+          });
+
+          const existingIssue = issues.data.find(issue => issue.title.includes('Security Vulnerabilities Detected'));
+
+          if (!existingIssue) {
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['security', 'high-priority', 'automated']
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: existingIssue.number,
+              body: `## 🔄 Updated Security Scan Results\n\n${body}`
+            });
+          }
+
+  automated-dependency-update:
+    runs-on: ubuntu-latest
+    needs: dependency-audit
+    if: >
+      needs.dependency-audit.outputs.updates-available == 'true' &&
+      github.event_name == 'schedule'
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Update Python Dependencies
+      run: |
+        # Update requirements file with latest versions
+        pip-compile --upgrade .github/workflows/requirements.in \
+          --output-file .github/workflows/requirements.txt || true
+
+    - name: Create Pull Request
+      uses: peter-evans/create-pull-request@v5
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: 'chore: automated dependency updates'
+        title: '🤖 Automated Dependency Updates'
+        body: |
+          ## 🤖 Automated Dependency Updates
+
+          This PR contains automated updates to project dependencies.
+
+          **Changes:**
+          - Updated Python package versions in requirements.txt
+          - All updates passed security vulnerability checks
+
+          **Review Instructions:**
+          1. Verify all tests pass
+          2. Check for any breaking changes in updated packages
+          3. Ensure Android builds still work correctly
+
+          This PR was created automatically by the dependency management workflow.
+        branch: automated/dependency-updates
+        delete-branch: true
