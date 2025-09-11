@@ -1,0 +1,208 @@
+/**
+ * Minimal WebSocket server that accepts action messages from a browser IDE
+ * and performs Git/GitHub operations with live streamed logs back to the client.
+ *
+ * Environment:
+ * - PORT (default 3000)
+ * - BASE_WORKSPACE_DIR (default ./workspaces)
+ *
+ * Security notes:
+ * - The client must send a GitHub Personal Access Token (PAT) via an `auth`
+ *   message. Keep PATs scoped to minimum permissions (repo, workflow).
+ * - This example uses token-in-URL for git clone/push to simplify authentication.
+ *   That exposes the token to the process environment for the command; in
+ *   production use more secure approaches (ssh keys, ephemeral tokens, or a vault).
+ *
+ * Protocol (JSON messages over WS):
+ * - auth: { type: "auth", token: "<gh-token>" }
+ * - run clone: { type: "run", action: "clone", payload: { owner, repo, branch } }
+ * - run write:  { type: "run", action: "write", payload: { workspaceId, path, content } }
+ * - run git-commit: { type: "run", action: "commit", payload: { workspaceId, message, authorName, authorEmail } }
+ * - run push:   { type: "run", action: "push", payload: { workspaceId, branch } }
+ * - run pr:     { type: "run", action: "pr", payload: { workspaceId, headBranch, baseBranch, title, body } }
+ * - run workflow_dispatch: { type: "run", action: "workflow_dispatch", payload: { owner, repo, workflow_id, ref, inputs } }
+ *
+ * Responses streamed back to the WebSocket as JSON:
+ * - { type: "log", level: "info|error", text: "..." }
+ * - { type: "result", action: "...", data: { ... } }
+ * - { type: "error", message: "..." }
+ *
+ * This file is intentionally compact; adapt and harden for production.
+ */
+
+import express from "express";
+import http from "http";
+import { WebSocketServer } from "ws";
+import { Octokit } from "@octokit/rest";
+import { spawn } from "child_process";
+import fs from "fs/promises";
+import path from "path";
+import { randomUUID } from "crypto";
+import dotenv from "dotenv";
+
+dotenv.config();
+
+const PORT = Number(process.env.PORT || 3000);
+const BASE_WS = process.env.BASE_WORKSPACE_DIR || path.resolve(process.cwd(), "workspaces");
+
+// ensure base workspace exists
+await fs.mkdir(BASE_WS, { recursive: true });
+
+const app = express();
+// serve static client (index.html) and assets
+app.use(express.static(path.resolve(process.cwd(), "public")));
+
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server });
+
+function send(ws, obj) {
+  try {
+    ws.send(JSON.stringify(obj));
+  } catch (err) {
+    // ignore send errors
+  }
+}
+
+function maskTokenForLogs(url) {
+  return url.replace(/\/\/.*@/, "//<token>@");
+}
+
+async function execCommand(ws, cmd, args, cwd, opts = {}) {
+  return new Promise((resolve) => {
+    send(ws, { type: "log", level: "info", text: `+ ${[cmd, ...args].join(" ")}` });
+    const child = spawn(cmd, args, { cwd, env: { ...process.env, ...opts.env }, shell: false });
+    child.stdout.on("data", (d) => {
+      send(ws, { type: "log", level: "info", text: d.toString() });
+    });
+    child.stderr.on("data", (d) => {
+      send(ws, { type: "log", level: "error", text: d.toString() });
+    });
+    child.on("close", (code) => {
+      send(ws, { type: "log", level: "info", text: `process exited ${code}` });
+      resolve({ code });
+    });
+  });
+}
+
+wss.on("connection", (ws) => {
+  ws.session = { authenticated: false, token: null, workspaces: {} };
+  send(ws, { type: "log", level: "info", text: "connected to github-live-runner-ws" });
+
+  ws.on("message", async (raw) => {
+    let msg;
+    try {
+      msg = JSON.parse(raw.toString());
+    } catch (e) {
+      send(ws, { type: "error", message: "invalid JSON" });
+      return;
+    }
+
+    if (msg.type === "auth") {
+      const token = msg.token;
+      if (!token) {
+        send(ws, { type: "error", message: "token required" });
+        return;
+      }
+      ws.session.token = token;
+      ws.session.octokit = new Octokit({ auth: token });
+      ws.session.authenticated = true;
+      send(ws, { type: "result", action: "auth", data: { authenticated: true } });
+      return;
+    }
+
+    if (!ws.session.authenticated) {
+      send(ws, { type: "error", message: "not authenticated - send {type:'auth', token: '...'}" });
+      return;
+    }
+
+    if (msg.type === "run") {
+      const action = msg.action;
+      const payload = msg.payload || {};
+      try {
+        if (action === "clone") {
+          const { owner, repo, branch } = payload;
+          if (!owner || !repo) throw new Error("owner and repo required");
+          const workspaceId = randomUUID();
+          const repoDir = path.join(BASE_WS, workspaceId);
+          await fs.mkdir(repoDir, { recursive: true });
+          const token = ws.session.token;
+          // Use token in URL for git authentication. In production, use more secure methods.
+          const cloneUrl = `https://${token}@github.com/${owner}/${repo}.git`;
+          send(ws, { type: "log", level: "info", text: `cloning ${owner}/${repo} into ${repoDir}` });
+          await execCommand(ws, "git", ["clone", "--depth", "1", ...(branch ? ["-b", branch] : []), cloneUrl, "."], repoDir, { env: {} });
+          ws.session.workspaces[workspaceId] = { path: repoDir, owner, repo };
+          send(ws, { type: "result", action: "clone", data: { workspaceId, path: repoDir } });
+        } else if (action === "write") {
+          const { workspaceId, path: filePath, content } = payload;
+          if (!workspaceId || !filePath) throw new Error("workspaceId and path required");
+          const wsInfo = ws.session.workspaces[workspaceId];
+          if (!wsInfo) throw new Error("workspace not found");
+          const abs = path.join(wsInfo.path, filePath);
+          await fs.mkdir(path.dirname(abs), { recursive: true });
+          await fs.writeFile(abs, content || "", "utf8");
+          send(ws, { type: "result", action: "write", data: { path: abs } });
+        } else if (action === "commit") {
+          const { workspaceId, message = "update from ws", authorName = "ws-runner", authorEmail = "ws@example.com" } = payload;
+          if (!workspaceId) throw new Error("workspaceId required");
+          const wsInfo = ws.session.workspaces[workspaceId];
+          if (!wsInfo) throw new Error("workspace not found");
+          await execCommand(ws, "git", ["add", "."], wsInfo.path);
+          await execCommand(ws, "git", ["commit", "-m", message, "--author", `${authorName} <${authorEmail}>`], wsInfo.path);
+          send(ws, { type: "result", action: "commit", data: {} });
+        } else if (action === "push") {
+          const { workspaceId, branch = "main" } = payload;
+          if (!workspaceId) throw new Error("workspaceId required");
+          const wsInfo = ws.session.workspaces[workspaceId];
+          if (!wsInfo) throw new Error("workspace not found");
+          // set upstream branch if necessary
+          await execCommand(ws, "git", ["push", "origin", `HEAD:${branch}`], wsInfo.path);
+          send(ws, { type: "result", action: "push", data: {} });
+        } else if (action === "pr") {
+          const { workspaceId, headBranch, baseBranch = "main", title = "Automated PR", body = "" } = payload;
+          if (!workspaceId || !headBranch) throw new Error("workspaceId and headBranch required");
+          const wsInfo = ws.session.workspaces[workspaceId];
+          if (!wsInfo) throw new Error("workspace not found");
+          const octokit = ws.session.octokit;
+          const resp = await octokit.pulls.create({
+            owner: wsInfo.owner,
+            repo: wsInfo.repo,
+            head: headBranch,
+            base: baseBranch,
+            title,
+            body
+          });
+          send(ws, { type: "result", action: "pr", data: { url: resp.data.html_url } });
+        } else if (action === "workflow_dispatch") {
+          const { owner, repo, workflow_id, ref = "main", inputs = {} } = payload;
+          if (!owner || !repo || !workflow_id) throw new Error("owner, repo and workflow_id required");
+          const octokit = ws.session.octokit;
+          await octokit.actions.createWorkflowDispatch({
+            owner,
+            repo,
+            workflow_id,
+            ref,
+            inputs
+          });
+          send(ws, { type: "result", action: "workflow_dispatch", data: { triggered: true } });
+        } else {
+          send(ws, { type: "error", message: `unknown action ${action}` });
+        }
+      } catch (err) {
+        send(ws, { type: "error", message: err.message || String(err) });
+      }
+      return;
+    }
+
+    send(ws, { type: "error", message: "unknown message type" });
+  });
+
+  ws.on("close", () => {
+    // cleanup could be done here for ephemeral workspaces
+  });
+});
+
+server.listen(PORT, () => {
+  // prettier-ignore
+  // console log intentionally minimal
+  console.log(`Server listening on http://localhost:${PORT}`);
+});
