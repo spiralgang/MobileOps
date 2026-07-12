@@ -36,7 +36,7 @@ jobs:
           fetch-depth: 0
 
       - name: Lint Code Base
-        uses: super-linter/super-linter/slim@88ea3923a7e1f89dd485d864c5c6d69d40bcc8db
+        uses: super-linter/super-linter/slim@v5.7.2
         env:
           DEFAULT_BRANCH: main
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -66,9 +66,6 @@ jobs:
       - name: Differential ShellCheck
         uses: redhat-plumbers-in-action/differential-shellcheck@dd551ce780d8af741f8cd8bab6982667b906b457
         with:
-          # exclude all `.in` files because they may contain unsupported syntax, and they have to be preprocessed first
-          # TEMPORARY: exclude bash completion files, they would generate too many defects in Code scanning dashboard (600+)
-          # exclude zsh completion files, zsh is not supported by ShellCheck
           exclude-path: |
             '**/*.in'
             'shell-completion/bash/*'
