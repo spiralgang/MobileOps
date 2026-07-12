@@ -46,21 +46,21 @@ jobs:
         id: changes
         with:
           filters: |
-          core:
-            - 'src/**'
-            - 'meson.build'
-            - 'meson_options.txt'
-            - 'units/**'
-          android:
-            - 'android/**'
-            - 'scripts/android_**'
-          scripts:
-            - 'scripts/**'
-          docs:
-            - 'docs/**'
-            - '*.md'
-          workflows:
-            - '.github/**'
+            core:
+              - 'src/**'
+              - 'meson.build'
+              - 'meson_options.txt'
+              - 'units/**'
+            android:
+              - 'android/**'
+              - 'scripts/android_**'
+            scripts:
+              - 'scripts/**'
+            docs:
+              - 'docs/**'
+              - '*.md'
+            workflows:
+              - '.github/**'
 
   matrix-build:
     needs: detect-changes
@@ -202,7 +202,7 @@ jobs:
 
     - name: Run Tests
       if: >
-        github.event.inputs.run_tests != 'false' &&
+        (github.event.inputs.run_tests != 'false' && github.event.inputs.run_tests != false) &&
         matrix.arch == 'x86_64'
       run: |
         meson test -C build --print-errorlogs
@@ -344,7 +344,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Download Build Artifacts
       uses: actions/download-artifact@v4
       with:
