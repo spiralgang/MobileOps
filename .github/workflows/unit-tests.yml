@@ -25,13 +25,11 @@ jobs:
         run_phase: [GCC, GCC_ASAN_UBSAN, CLANG, CLANG_RELEASE, CLANG_ASAN_UBSAN, CLANG_ASAN_UBSAN_NO_DEPS]
         include:
           - run_phase: GCC
-          - run_phase: GCC
             runner: ubuntu-24.04-arm
           - run_phase: GCC
             runner: ubuntu-24.04-ppc64le
           - run_phase: GCC
             runner: ubuntu-24.04-s390x
-          - run_phase: CLANG
           - run_phase: CLANG
             runner: ubuntu-24.04-arm
           - run_phase: CLANG
